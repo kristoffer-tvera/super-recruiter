@@ -29,20 +29,8 @@ public class WowProgressService : IWowProgressService
         _logger = logger;
         _configuration = configuration;
 
-        // Set headers to avoid being blocked
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        );
-        _httpClient.DefaultRequestHeaders.Add(
-            "Accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-        );
-        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
-        _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
-        _httpClient.DefaultRequestHeaders.Add("DNT", "1");
-        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
-        _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
-        _httpClient.DefaultRequestHeaders.Referrer = new Uri("https://www.wowprogress.com/");
+        // Keep it as simple as possible - let HttpClient use its defaults
+        // Sometimes less is more with bot detection
     }
 
     public async Task<List<Player>> GetLookingForGuildPlayersAsync(
@@ -65,25 +53,23 @@ public class WowProgressService : IWowProgressService
             {
                 _logger.LogInformation("Fetching player data from WoWProgress...");
 
-                // Create a request message with all headers
-                var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + LfgUrl);
-
-                var response = await _httpClient.SendAsync(request, cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
+                // Try using the simpler GetStringAsync directly
+                try
+                {
+                    html = await _httpClient.GetStringAsync(BaseUrl + LfgUrl, cancellationToken);
+                }
+                catch (HttpRequestException ex)
                 {
                     _logger.LogError(
-                        "Failed to fetch data. Status: {StatusCode}, Reason: {ReasonPhrase}",
-                        response.StatusCode,
-                        response.ReasonPhrase
+                        "Failed to fetch data. Status: {StatusCode}, Message: {Message}",
+                        ex.StatusCode,
+                        ex.Message
                     );
                     _logger.LogWarning(
                         "TIP: Set 'UseTestData: true' in appsettings.json to test with sample data"
                     );
                     return players;
                 }
-
-                html = await response.Content.ReadAsStringAsync(cancellationToken);
             }
 
             var doc = new HtmlDocument();
