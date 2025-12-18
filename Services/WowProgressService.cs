@@ -124,48 +124,45 @@ public class WowProgressService : IWowProgressService
                     if (cells == null || cells.Count < 6)
                         continue;
 
-                    // Cell 0: Character (contains race and class)
+                    // Cell 0: Character (contains character name and class in aria-label)
                     var characterCell = cells[0];
                     var characterLink = characterCell.SelectSingleNode(".//a");
                     var characterUrl =
                         characterLink?.GetAttributeValue("href", string.Empty) ?? string.Empty;
+                    var characterName = characterLink?.InnerText.Trim() ?? string.Empty;
 
-                    // Parse race and class from aria-label attribute (e.g., "dwarf hunter", "blood elf demon hunter")
+                    // Parse class from aria-label attribute (e.g., "dwarf hunter", "blood elf demon hunter")
                     var ariaLabel =
                         characterLink?.GetAttributeValue("aria-label", string.Empty)
                         ?? string.Empty;
                     var parts = ariaLabel.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    string race = string.Empty;
                     string className = string.Empty;
 
                     if (parts.Length >= 2)
                     {
-                        // Handle multi-word races and classes (e.g., "blood elf demon hunter", "kul tiran druid")
-                        // Last word(s) can be the class
-                        // Known multi-word classes: demon hunter, death knight
+                        // Handle multi-word classes (e.g., "demon hunter")
                         if (parts.Length >= 3 && parts[^2] == "demon" && parts[^1] == "hunter")
                         {
                             className = "demon hunter";
-                            race = string.Join(" ", parts[..^2]);
                         }
                         else if (parts.Length == 2)
                         {
-                            // Single word race and single word class
-                            race = parts[0];
+                            // Last word is the class
                             className = parts[1];
                         }
                         else if (parts.Length >= 3)
                         {
-                            // Assume last word is class, rest is race
+                            // Assume last word is class
                             className = parts[^1];
-                            race = string.Join(" ", parts[..^1]);
                         }
                     }
+                    else if (parts.Length == 1)
+                    {
+                        // Evoker class (no race specified for Dracthyr)
+                        className = parts[0];
+                    }
 
-                    // Cell 1: Guild
-                    var guild = cells[1].InnerText.Trim();
-                    if (string.IsNullOrWhiteSpace(guild))
-                        guild = null;
+                    // Cell 1: Guild (skip - not interested)
 
                     // Cell 2: Raid (skip)
 
@@ -185,14 +182,33 @@ public class WowProgressService : IWowProgressService
                         continue;
 
                     // Cell 5: Date/Time
-                    var dateText = cells[5].InnerText.Trim();
-                    var lastUpdated = ParseDate(dateText);
+                    // Cell 5: Date/Time - extract from data-ts attribute (Unix timestamp)
+                    var dateSpan = cells[5].SelectSingleNode(".//span[@data-ts]");
+                    var timestampStr =
+                        dateSpan?.GetAttributeValue("data-ts", string.Empty) ?? string.Empty;
+                    DateTime lastUpdated;
+
+                    if (
+                        !string.IsNullOrEmpty(timestampStr)
+                        && long.TryParse(timestampStr, out var unixTimestamp)
+                    )
+                    {
+                        // Convert Unix timestamp to DateTime
+                        lastUpdated = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).DateTime;
+                    }
+                    else
+                    {
+                        // Fallback to current time if parsing fails
+                        lastUpdated = DateTime.UtcNow;
+                        _logger.LogWarning(
+                            "Failed to parse timestamp for player, using current time"
+                        );
+                    }
 
                     var player = new Player
                     {
-                        Race = race,
+                        CharacterName = characterName,
                         Class = className,
-                        Guild = guild,
                         Realm = realm,
                         ItemLevel = itemLevel,
                         LastUpdated = lastUpdated,

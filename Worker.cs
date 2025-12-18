@@ -56,8 +56,7 @@ public class Worker : BackgroundService
                     foreach (var player in players)
                     {
                         // Create a unique key for each player
-                        var playerKey =
-                            $"{player.Race}|{player.Class}|{player.Realm}|{player.ItemLevel}";
+                        var playerKey = $"{player.CharacterName}|{player.Realm}|{player.ItemLevel}";
 
                         if (!_seenPlayers.Contains(playerKey))
                         {

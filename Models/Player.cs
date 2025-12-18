@@ -2,9 +2,8 @@ namespace SuperRecruiter.Models;
 
 public class Player
 {
-    public string Race { get; set; } = string.Empty;
+    public string CharacterName { get; set; } = string.Empty;
     public string Class { get; set; } = string.Empty;
-    public string? Guild { get; set; }
     public string Realm { get; set; } = string.Empty;
     public double ItemLevel { get; set; }
     public DateTime LastUpdated { get; set; }
@@ -12,8 +11,7 @@ public class Player
 
     public override string ToString()
     {
-        return $"{Race} {Class} ({ItemLevel:F2}) - {Realm}"
-            + (Guild != null ? $" [{Guild}]" : "")
+        return $"{CharacterName} - {Class} ({ItemLevel:F2}) - {Realm}"
             + $" - Updated: {LastUpdated:g}";
     }
 }

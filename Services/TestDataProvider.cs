@@ -13,7 +13,7 @@ public static class TestDataProvider
 <table class='rating'>
     <tr><th>Character</th><th>Guild</th><th>Raid</th><th>Realm</th><th>iLvL</th><th>Updated</th></tr>
     <tr>
-        <td><a href='/pug/eu/draenor/Testplayer'>blood elf paladin</a></td>
+        <td><a aria-label='blood elf paladin' href='/pug/eu/draenor/Testplayer'>Testplayer</a></td>
         <td>Test Guild</td>
         <td></td>
         <td>Draenor</td>
@@ -21,7 +21,7 @@ public static class TestDataProvider
         <td>Dec 18, 2025 00:00</td>
     </tr>
     <tr>
-        <td><a href='/pug/eu/silvermoon/Anotherguy'>orc warrior</a></td>
+        <td><a aria-label='orc warrior' href='/pug/eu/silvermoon/Anotherguy'>Anotherguy</a></td>
         <td></td>
         <td></td>
         <td>Silvermoon</td>
@@ -29,7 +29,7 @@ public static class TestDataProvider
         <td>Dec 17, 2025 23:45</td>
     </tr>
     <tr>
-        <td><a href='/pug/eu/tarrenmill/Magetest'>kul tiran mage</a></td>
+        <td><a aria-label='kul tiran mage' href='/pug/eu/tarrenmill/Magetest'>Magetest</a></td>
         <td>Epic Gamers</td>
         <td></td>
         <td>Tarren Mill</td>
