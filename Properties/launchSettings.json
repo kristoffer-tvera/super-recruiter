@@ -5,7 +5,8 @@
       "commandName": "Project",
       "dotnetRunMessages": true,
       "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "Development"
+        "DOTNET_ENVIRONMENT": "Development",
+        "PLAYWRIGHT_BROWSERS_PATH": "C:\\Users\\Blues\\.nuget\\packages\\microsoft.playwright\\1.57.0\\.playwright\\package\\.local-browsers"
       }
     }
   }

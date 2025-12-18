@@ -1,4 +1,4 @@
-namespace super_recruiter.Services;
+namespace SuperRecruiter.Services;
 
 /// <summary>
 /// Test data provider for development/testing when the live site blocks requests

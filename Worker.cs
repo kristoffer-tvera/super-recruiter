@@ -1,7 +1,7 @@
-using super_recruiter.Models;
-using super_recruiter.Services;
+using SuperRecruiter.Models;
+using SuperRecruiter.Services;
 
-namespace super_recruiter;
+namespace SuperRecruiter;
 
 public class Worker : BackgroundService
 {

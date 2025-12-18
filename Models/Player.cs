@@ -1,4 +1,4 @@
-namespace super_recruiter.Models;
+namespace SuperRecruiter.Models;
 
 public class Player
 {

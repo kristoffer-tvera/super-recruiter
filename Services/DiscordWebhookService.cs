@@ -1,7 +1,7 @@
 using System.Text.Json;
-using super_recruiter.Models;
+using SuperRecruiter.Models;
 
-namespace super_recruiter.Services;
+namespace SuperRecruiter.Services;
 
 public interface IDiscordWebhookService
 {
