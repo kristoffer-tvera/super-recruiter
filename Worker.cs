@@ -38,6 +38,15 @@ public class Worker : BackgroundService
             pollingIntervalMinutes
         );
 
+        var (bslProfile, bslRaidProgress) = await _raiderIOService.GetCharacterProfileAsync(
+            "eu",
+            "stormscale",
+            "bsl",
+            stoppingToken
+        );
+
+        return;
+
         // Initial delay to let services initialize
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 

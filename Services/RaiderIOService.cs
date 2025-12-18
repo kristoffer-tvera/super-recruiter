@@ -5,7 +5,7 @@ namespace SuperRecruiter.Services;
 
 public interface IRaiderIOService
 {
-    Task<RaiderIOProfile?> GetCharacterProfileAsync(
+    Task<(RaiderIOProfile?, List<string>)> GetCharacterProfileAsync(
         string region,
         string realm,
         string characterName,
@@ -31,7 +31,7 @@ public class RaiderIOService : IRaiderIOService
         _configuration = configuration;
     }
 
-    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(
+    public async Task<(RaiderIOProfile?, List<string>)> GetCharacterProfileAsync(
         string region,
         string realm,
         string characterName,
@@ -44,7 +44,7 @@ public class RaiderIOService : IRaiderIOService
             if (string.IsNullOrEmpty(apiKey))
             {
                 _logger.LogWarning("RaiderIO API key not configured");
-                return null;
+                return (null, new List<string> { "No raid data" });
             }
 
             // Normalize realm name (replace spaces with hyphens, lowercase)
@@ -69,7 +69,7 @@ public class RaiderIOService : IRaiderIOService
                     characterName,
                     response.StatusCode
                 );
-                return null;
+                return (null, new List<string> { "No raid data" });
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -87,7 +87,7 @@ public class RaiderIOService : IRaiderIOService
                 );
             }
 
-            return profile;
+            return (profile, GetRaidProgressionSummary(profile));
         }
         catch (Exception ex)
         {
@@ -97,17 +97,44 @@ public class RaiderIOService : IRaiderIOService
                 characterName,
                 realm
             );
-            return null;
+            return (null, new List<string> { "No raid data" });
         }
     }
 
-    private string GetRaidProgressionSummary(RaiderIOProfile profile)
+    private List<string> GetRaidProgressionSummary(RaiderIOProfile profile)
     {
         if (profile.Raid_progression == null || !profile.Raid_progression.Any())
-            return "No raid data";
+            return new List<string> { "No raid data" };
 
-        // Get the first (most recent) raid tier
-        var latestRaid = profile.Raid_progression.First();
-        return $"{latestRaid.Key}: {latestRaid.Value.Summary}";
+        // Loop all tiers and add them to list:
+        var summaries = new List<string>();
+        foreach (var tier in profile.Raid_progression)
+        {
+            var tierName = GetNameFromKebabCase(tier.Key);
+            // Tier progress can be empty, so handle that case
+            var tierProgress = string.IsNullOrEmpty(tier.Value.Summary)
+                ? "No progress"
+                : tier.Value.Summary;
+
+            summaries.Add($"{tierName}: {tierProgress}");
+        }
+
+        return summaries;
+    }
+
+    private string GetNameFromKebabCase(string kebabCase)
+    {
+        if (string.IsNullOrWhiteSpace(kebabCase))
+            return string.Empty;
+
+        var parts = kebabCase.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < parts.Length; i++)
+        {
+            parts[i] =
+                parts[i].Length > 1
+                    ? char.ToUpper(parts[i][0]) + parts[i][1..].ToLower()
+                    : parts[i].ToUpper();
+        }
+        return string.Join(' ', parts);
     }
 }
