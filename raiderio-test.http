@@ -1,0 +1,3 @@
+###
+# Test RaiderIO API
+GET https://raider.io/api/v1/characters/profile?access_key=RIOBM4smLcttuiCvZoMZtWhBp&region=eu&realm=stormscale&name=bsl&fields=raid_progression

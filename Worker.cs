@@ -8,6 +8,7 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly IWowProgressService _wowProgressService;
     private readonly IDiscordWebhookService _discordWebhookService;
+    private readonly IRaiderIOService _raiderIOService;
     private readonly IConfiguration _configuration;
     private HashSet<string> _seenPlayers = new();
 
@@ -15,12 +16,14 @@ public class Worker : BackgroundService
         ILogger<Worker> logger,
         IWowProgressService wowProgressService,
         IDiscordWebhookService discordWebhookService,
+        IRaiderIOService raiderIOService,
         IConfiguration configuration
     )
     {
         _logger = logger;
         _wowProgressService = wowProgressService;
         _discordWebhookService = discordWebhookService;
+        _raiderIOService = raiderIOService;
         _configuration = configuration;
     }
 
