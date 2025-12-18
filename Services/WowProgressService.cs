@@ -19,10 +19,7 @@ public class WowProgressService : IWowProgressService
     private const string BaseUrl = "https://www.wowprogress.com";
     private const string LfgUrl = "/gearscore/eu?lfg=1&sortby=ts";
 
-    public WowProgressService(
-        ILogger<WowProgressService> logger,
-        IConfiguration configuration
-    )
+    public WowProgressService(ILogger<WowProgressService> logger, IConfiguration configuration)
     {
         _logger = logger;
         _configuration = configuration;
@@ -48,14 +45,17 @@ public class WowProgressService : IWowProgressService
             else if (usePlaywright)
             {
                 _logger.LogInformation("Fetching player data using Playwright (real browser)...");
-                
+
                 try
                 {
                     html = await FetchWithPlaywrightAsync(BaseUrl + LfgUrl, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to fetch with Playwright. Have you installed browsers? Run: pwsh bin/Debug/net10.0/playwright.ps1 install chromium");
+                    _logger.LogError(
+                        ex,
+                        "Failed to fetch with Playwright. Have you installed browsers? Run: pwsh bin/Debug/net10.0/playwright.ps1 install chromium"
+                    );
                     return players;
                 }
             }
@@ -67,7 +67,7 @@ public class WowProgressService : IWowProgressService
                 // This will likely fail with 403
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestVersion = new Version(1, 1);
-                
+
                 try
                 {
                     html = await httpClient.GetStringAsync(BaseUrl + LfgUrl, cancellationToken);
@@ -91,22 +91,25 @@ public class WowProgressService : IWowProgressService
 
             // Debug: Log the HTML length and check for table
             _logger.LogDebug("HTML length: {Length} characters", html.Length);
-            
+
             // Find the table with player data
             // The table has rows with format: character info | guild | raid | realm | ilvl | date
             var rows = doc.DocumentNode.SelectNodes("//table[@class='rating']//tr[position()>1]");
-            
+
             if (rows == null)
             {
                 // Try alternative selector
                 rows = doc.DocumentNode.SelectNodes("//table//tr[position()>1]");
-                _logger.LogWarning("Rating table not found, trying generic table. Found {Count} rows", rows?.Count ?? 0);
-                
+                _logger.LogWarning(
+                    "Rating table not found, trying generic table. Found {Count} rows",
+                    rows?.Count ?? 0
+                );
+
                 // Save HTML to file for inspection
                 await File.WriteAllTextAsync("debug_output.html", html);
                 _logger.LogInformation("Saved HTML to debug_output.html for inspection");
             }
-            
+
             if (rows == null)
             {
                 _logger.LogWarning("No player rows found in the table");
@@ -129,7 +132,8 @@ public class WowProgressService : IWowProgressService
 
                     // Parse race and class from aria-label attribute (e.g., "dwarf hunter", "blood elf demon hunter")
                     var ariaLabel =
-                        characterLink?.GetAttributeValue("aria-label", string.Empty) ?? string.Empty;
+                        characterLink?.GetAttributeValue("aria-label", string.Empty)
+                        ?? string.Empty;
                     var parts = ariaLabel.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     string race = string.Empty;
                     string className = string.Empty;
@@ -234,47 +238,57 @@ public class WowProgressService : IWowProgressService
         return DateTime.UtcNow;
     }
 
-    private async Task<string> FetchWithPlaywrightAsync(string url, CancellationToken cancellationToken)
+    private async Task<string> FetchWithPlaywrightAsync(
+        string url,
+        CancellationToken cancellationToken
+    )
     {
         // Use Playwright to fetch with a real browser (bypasses bot detection)
         var playwright = await Playwright.CreateAsync();
-        
+
         // Try non-headless mode - Cloudflare detects headless browsers
         var headless = _configuration.GetValue<bool>("PlaywrightHeadless", false);
-        
-        await using var browser = await playwright.Chromium.LaunchAsync(new()
-        {
-            Headless = headless // Set to false to show browser window
-        });
+
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new()
+            {
+                Headless = headless, // Set to false to show browser window
+            }
+        );
 
         var page = await browser.NewPageAsync();
-        
+
         _logger.LogInformation("Navigating to {Url} (headless: {Headless})", url, headless);
-        
+
         // Navigate to the page
-        await page.GotoAsync(url, new() 
-        { 
-            WaitUntil = WaitUntilState.DOMContentLoaded,
-            Timeout = 30000 
-        });
+        await page.GotoAsync(
+            url,
+            new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 30000 }
+        );
 
         // Wait for Cloudflare challenge to complete
         // Look for the rating table or wait for the challenge to disappear
         try
         {
-            _logger.LogInformation("Waiting for Cloudflare challenge to complete (this may take 20-30 seconds)...");
+            _logger.LogInformation(
+                "Waiting for Cloudflare challenge to complete (this may take 20-30 seconds)..."
+            );
             await page.WaitForSelectorAsync("table.rating", new() { Timeout = 60000 });
             _logger.LogInformation("Challenge completed, table loaded!");
         }
         catch (TimeoutException)
         {
-            _logger.LogWarning("Timeout waiting for content table. Cloudflare might be blocking automated access.");
-            _logger.LogInformation("TIP: Try setting 'PlaywrightHeadless: false' to run with visible browser");
+            _logger.LogWarning(
+                "Timeout waiting for content table. Cloudflare might be blocking automated access."
+            );
+            _logger.LogInformation(
+                "TIP: Try setting 'PlaywrightHeadless: false' to run with visible browser"
+            );
         }
 
         // Get the HTML content
         var html = await page.ContentAsync();
-        
+
         await browser.CloseAsync();
         playwright.Dispose();
 
