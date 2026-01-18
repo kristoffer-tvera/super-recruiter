@@ -39,20 +39,6 @@ public class DiscordWebhookService : IDiscordWebhookService
             return;
         }
 
-        // Mock implementation for now
-        _logger.LogInformation("=== MOCK DISCORD WEBHOOK ===");
-        _logger.LogInformation(
-            "Would send notification for {Count} new player(s) looking for guild:",
-            newPlayers.Count
-        );
-
-        foreach (var player in newPlayers)
-        {
-            _logger.LogInformation("  - {Player}", player.ToString());
-        }
-
-        // Uncomment when ready to actually send to Discord
-        /*
         if (string.IsNullOrWhiteSpace(_webhookUrl))
         {
             _logger.LogWarning("Discord webhook URL not configured");
@@ -61,35 +47,44 @@ public class DiscordWebhookService : IDiscordWebhookService
 
         try
         {
-            var embeds = newPlayers.Select(p => new
-            {
-                title = $"{p.Race} {p.Class}",
-                description = $"**Item Level:** {p.ItemLevel:F2}\n**Realm:** {p.Realm}\n**Guild:** {p.Guild ?? "None"}",
-                url = p.CharacterUrl,
-                color = 3447003, // Blue color
-                footer = new { text = $"Last updated: {p.LastUpdated:g}" }
-            }).ToArray();
+            var embeds = newPlayers
+                .Select(p => new
+                {
+                    title = $"{p.CharacterName} {p.Class}",
+                    description = $"**Item Level:** {p.ItemLevel:F2}\n**Realm:** {p.Realm}\n",
+                    url = p.CharacterUrl,
+                    color = 3447003, // Blue color
+                    footer = new { text = $"Last updated: {p.LastUpdated:g}" },
+                })
+                .ToArray();
 
             var payload = new
             {
                 content = $"🔔 **{newPlayers.Count} new player(s) looking for guild!**",
-                embeds
+                embeds,
             };
 
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            
+
             var response = await _httpClient.PostAsync(_webhookUrl, content, cancellationToken);
-            response.EnsureSuccessStatusCode();
-            
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Discord webhook request failed with status {StatusCode}: {ResponseContent}",
+                    response.StatusCode,
+                    responseContent
+                );
+                response.EnsureSuccessStatusCode();
+            }
+
             _logger.LogInformation("Successfully sent Discord notification");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending Discord webhook notification");
         }
-        */
-
-        _logger.LogInformation("=== END MOCK ===");
     }
 }

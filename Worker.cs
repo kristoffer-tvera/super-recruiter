@@ -38,14 +38,14 @@ public class Worker : BackgroundService
             pollingIntervalMinutes
         );
 
-        var (bslProfile, bslRaidProgress) = await _raiderIOService.GetCharacterProfileAsync(
-            "eu",
-            "stormscale",
-            "bsl",
-            stoppingToken
-        );
+        // var (bslProfile, bslRaidProgress) = await _raiderIOService.GetCharacterProfileAsync(
+        //     "eu",
+        //     "stormscale",
+        //     "bsl",
+        //     stoppingToken
+        // );
 
-        return;
+        // RETURN;
 
         // Initial delay to let services initialize
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
@@ -85,10 +85,15 @@ public class Worker : BackgroundService
                             players.Count
                         );
 
-                        await _discordWebhookService.SendNewPlayersNotificationAsync(
-                            newPlayers,
-                            stoppingToken
-                        );
+                        // Break into chunks of 10 for Discord limitation
+                        for (int i = 0; i < newPlayers.Count; i += 10)
+                        {
+                            var chunk = newPlayers.Skip(i).Take(10).ToList();
+                            await _discordWebhookService.SendNewPlayersNotificationAsync(
+                                chunk,
+                                stoppingToken
+                            );
+                        }
                     }
                     else
                     {
