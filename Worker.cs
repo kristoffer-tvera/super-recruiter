@@ -60,6 +60,8 @@ public class Worker : BackgroundService
                     stoppingToken
                 );
 
+                players = players.Take(3).ToList(); // while debugging
+
                 if (players.Count > 0)
                 {
                     // Identify new players we haven't seen before
@@ -68,7 +70,7 @@ public class Worker : BackgroundService
                     foreach (var player in players)
                     {
                         // Create a unique key for each player
-                        var playerKey = $"{player.CharacterName}|{player.Realm}|{player.ItemLevel}";
+                        var playerKey = $"{player.CharacterName}|{player.Realm}";
 
                         if (!_seenPlayers.Contains(playerKey))
                         {

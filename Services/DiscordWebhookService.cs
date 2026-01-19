@@ -47,16 +47,24 @@ public class DiscordWebhookService : IDiscordWebhookService
 
         try
         {
-            var embeds = newPlayers
-                .Select(p => new
-                {
-                    title = $"{p.CharacterName} {p.Class}",
-                    description = $"**Item Level:** {p.ItemLevel:F2}\n**Realm:** {p.Realm}\n",
-                    url = p.CharacterUrl,
-                    color = 3447003, // Blue color
-                    footer = new { text = $"Last updated: {p.LastUpdated:g}" },
-                })
-                .ToArray();
+            var embeds = new List<object>();
+            foreach (var p in newPlayers)
+            {
+                var raiderIoUrl =
+                    $"https://raider.io/characters/eu/{p.RealmSlug}/{p.CharacterName}";
+                var warcraftLogsUrl =
+                    $"https://www.warcraftlogs.com/character/eu/{p.RealmSlug}/{p.CharacterName}";
+                embeds.Add(
+                    new
+                    {
+                        title = $"{p.CharacterName} {p.Class}",
+                        description = $"**Item Level:** {p.ItemLevel:F2}\n**Realm:** {p.Realm}\n**[Raider.IO]({raiderIoUrl})** | **[Warcraft Logs]({warcraftLogsUrl})**",
+                        url = p.CharacterUrl,
+                        color = 3447003, // Blue color
+                        footer = new { text = $"Last updated: {p.LastUpdated:g}" },
+                    }
+                );
+            }
 
             var payload = new
             {

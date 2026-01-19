@@ -1,6 +1,6 @@
 using System.Globalization;
 using HtmlAgilityPack;
-using Microsoft.Playwright;
+using PuppeteerSharp;
 using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
@@ -8,6 +8,10 @@ namespace SuperRecruiter.Services;
 public interface IWowProgressService
 {
     Task<List<Player>> GetLookingForGuildPlayersAsync(
+        CancellationToken cancellationToken = default
+    );
+    Task<Player> GetPlayerDetailsAsync(
+        Player player,
         CancellationToken cancellationToken = default
     );
 }
@@ -33,64 +37,35 @@ public class WowProgressService : IWowProgressService
 
         try
         {
-            string html;
-            var useTestData = _configuration.GetValue<bool>("UseTestData", false);
-            var usePlaywright = _configuration.GetValue<bool>("UsePlaywright", true);
+            string html = string.Empty;
+            var usePuppeteer = _configuration.GetValue<bool>("UsePuppeteer", true);
 
-            if (useTestData)
+            if (usePuppeteer)
             {
-                _logger.LogWarning("Using TEST DATA mode - not fetching from live site");
-                html = TestDataProvider.SampleHtml;
-            }
-            else if (usePlaywright)
-            {
-                _logger.LogInformation("Fetching player data using Playwright (real browser)...");
+                _logger.LogInformation("Fetching player data using Puppeteer (real browser)...");
 
                 try
                 {
-                    html = await FetchWithPlaywrightAsync(BaseUrl + LfgUrl, cancellationToken);
+                    html = await FetchWithPuppeteerAsync(BaseUrl + LfgUrl, cancellationToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(
                         ex,
-                        "Failed to fetch with Playwright. Have you installed browsers? Run: pwsh bin/Debug/net10.0/playwright.ps1 install chromium"
+                        "Failed to fetch with Puppeteer. Browser will be automatically downloaded on first run."
                     );
                     return players;
                 }
             }
-            else
+
+            if (string.IsNullOrWhiteSpace(html))
             {
-                _logger.LogWarning("Playwright disabled - using HttpClient (likely to be blocked)");
-                _logger.LogInformation("Fetching player data from WoWProgress...");
-
-                // This will likely fail with 403
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestVersion = new Version(1, 1);
-
-                try
-                {
-                    html = await httpClient.GetStringAsync(BaseUrl + LfgUrl, cancellationToken);
-                }
-                catch (HttpRequestException ex)
-                {
-                    _logger.LogError(
-                        "Failed to fetch data. Status: {StatusCode}, Message: {Message}",
-                        ex.StatusCode,
-                        ex.Message
-                    );
-                    _logger.LogWarning(
-                        "TIP: Set 'UsePlaywright: true' or 'UseTestData: true' in appsettings.json"
-                    );
-                    return players;
-                }
+                _logger.LogInformation("No HTML content fetched, returning empty player list.");
+                return players;
             }
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
-
-            // Debug: Log the HTML length and check for table
-            _logger.LogDebug("HTML length: {Length} characters", html.Length);
 
             // Find the table with player data
             // The table has rows with format: character info | guild | raid | realm | ilvl | date
@@ -235,51 +210,139 @@ public class WowProgressService : IWowProgressService
         return players;
     }
 
-    private DateTime ParseDate(string dateText)
+    public async Task<Player> GetPlayerDetailsAsync(
+        Player player,
+        CancellationToken cancellationToken = default
+    )
     {
-        // Expected format: "Dec 17, 2025 23:14"
-        if (
-            DateTime.TryParseExact(
-                dateText,
-                new[] { "MMM d, yyyy HH:mm", "MMM dd, yyyy HH:mm" },
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var date
-            )
-        )
+        try
         {
-            return date;
+            string html = string.Empty;
+            var usePuppeteer = _configuration.GetValue<bool>("UsePuppeteer", true);
+
+            if (usePuppeteer)
+            {
+                _logger.LogInformation("Fetching player data using Puppeteer (real browser)...");
+
+                try
+                {
+                    html = await FetchWithPuppeteerAsync(player.CharacterUrl, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to fetch with Puppeteer. Browser will be automatically downloaded on first run."
+                    );
+                    return player;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                _logger.LogInformation("No HTML content fetched, returning empty player list.");
+                return player;
+            }
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            // Extract details from the character page
+            var registeredTo = doc.DocumentNode.SelectSingleNode("//div[@class='registeredTo']");
+
+            if (registeredTo != null)
+            {
+                // Battletag
+                var battletagSpan = registeredTo.SelectSingleNode(
+                    ".//span[@class='profileBattletag']"
+                );
+                player.BattleTag = battletagSpan?.InnerText.Trim();
+
+                // Languages
+                var languageDiv = registeredTo.SelectSingleNode(
+                    ".//div[@class='language' and contains(., 'Languages:')]"
+                );
+                if (languageDiv != null)
+                {
+                    var languageText = languageDiv.InnerText.Replace("Languages:", "").Trim();
+                    player.Languages = languageText;
+                }
+
+                // Specs playing
+                var specsDiv = registeredTo.SelectSingleNode(
+                    ".//div[@class='language' and contains(., 'Specs playing:')]"
+                );
+                if (specsDiv != null)
+                {
+                    var specsText = specsDiv.SelectSingleNode(".//strong")?.InnerText.Trim();
+                    player.SpecsPlaying = specsText;
+                }
+
+                // Character commentary
+                var commentaryDiv = registeredTo.SelectSingleNode(
+                    ".//div[@class='charCommentary']"
+                );
+                if (commentaryDiv != null)
+                {
+                    player.Bio = commentaryDiv.InnerText.Trim();
+                }
+
+                _logger.LogInformation(
+                    "Successfully parsed details for {CharacterName}: BattleTag={BattleTag}",
+                    player.CharacterName,
+                    player.BattleTag
+                );
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "No registeredTo div found for {CharacterName}. Character may not have a profile.",
+                    player.CharacterName
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching or parsing WoWProgress data");
         }
 
-        return DateTime.UtcNow;
+        return player;
     }
 
-    private async Task<string> FetchWithPlaywrightAsync(
+    private async Task<string> FetchWithPuppeteerAsync(
         string url,
         CancellationToken cancellationToken
     )
     {
-        // Use Playwright to fetch with a real browser (bypasses bot detection)
-        var playwright = await Playwright.CreateAsync();
+        // Use Puppeteer to fetch with a real browser (bypasses bot detection)
+        // Download browser if not already present
+        var browserFetcher = new BrowserFetcher();
+        _logger.LogInformation("Checking for browser installation...");
+        await browserFetcher.DownloadAsync();
 
-        // Try non-headless mode - Cloudflare detects headless browsers
-        var headless = _configuration.GetValue<bool>("PlaywrightHeadless", false);
+        // Try headless mode - Puppeteer has better headless support than Playwright
+        var headless = _configuration.GetValue<bool>("PuppeteerHeadless", true);
 
-        await using var browser = await playwright.Chromium.LaunchAsync(
-            new()
+        await using var browser = await Puppeteer.LaunchAsync(
+            new LaunchOptions
             {
-                Headless = headless, // Set to false to show browser window
+                Headless = headless, // Puppeteer works better in headless mode
+                Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" },
             }
         );
 
-        var page = await browser.NewPageAsync();
+        await using var page = await browser.NewPageAsync();
 
         _logger.LogInformation("Navigating to {Url} (headless: {Headless})", url, headless);
 
         // Navigate to the page
-        await page.GotoAsync(
+        await page.GoToAsync(
             url,
-            new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 30000 }
+            new NavigationOptions
+            {
+                WaitUntil = new[] { WaitUntilNavigation.DOMContentLoaded },
+                Timeout = 30000,
+            }
         );
 
         // Wait for Cloudflare challenge to complete
@@ -289,24 +352,26 @@ public class WowProgressService : IWowProgressService
             _logger.LogInformation(
                 "Waiting for Cloudflare challenge to complete (this may take 20-30 seconds)..."
             );
-            await page.WaitForSelectorAsync("table.rating", new() { Timeout = 60000 });
+            await page.WaitForSelectorAsync(
+                "table.rating",
+                new WaitForSelectorOptions { Timeout = 60000 }
+            );
             _logger.LogInformation("Challenge completed, table loaded!");
         }
-        catch (TimeoutException)
+        catch (WaitTaskTimeoutException)
         {
             _logger.LogWarning(
                 "Timeout waiting for content table. Cloudflare might be blocking automated access."
             );
             _logger.LogInformation(
-                "TIP: Try setting 'PlaywrightHeadless: false' to run with visible browser"
+                "TIP: Try setting 'PuppeteerHeadless: false' to run with visible browser"
             );
         }
 
         // Get the HTML content
-        var html = await page.ContentAsync();
+        var html = await page.GetContentAsync();
 
         await browser.CloseAsync();
-        playwright.Dispose();
 
         return html;
     }
