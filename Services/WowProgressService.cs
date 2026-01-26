@@ -1,6 +1,7 @@
 using System.Globalization;
+using System.Net.Http.Json;
+using System.Text.Json;
 using HtmlAgilityPack;
-using PuppeteerSharp;
 using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
@@ -19,13 +20,19 @@ public interface IWowProgressService
 public class WowProgressService : IWowProgressService
 {
     private readonly ILogger<WowProgressService> _logger;
+    private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private const string BaseUrl = "https://www.wowprogress.com";
     private const string LfgUrl = "/gearscore/eu?lfg=1&sortby=ts";
 
-    public WowProgressService(ILogger<WowProgressService> logger, IConfiguration configuration)
+    public WowProgressService(
+        ILogger<WowProgressService> logger,
+        HttpClient httpClient,
+        IConfiguration configuration
+    )
     {
         _logger = logger;
+        _httpClient = httpClient;
         _configuration = configuration;
     }
 
@@ -37,26 +44,9 @@ public class WowProgressService : IWowProgressService
 
         try
         {
-            string html = string.Empty;
-            var usePuppeteer = _configuration.GetValue<bool>("UsePuppeteer", true);
+            _logger.LogInformation("Fetching player data using FlareSolverr...");
 
-            if (usePuppeteer)
-            {
-                _logger.LogInformation("Fetching player data using Puppeteer (real browser)...");
-
-                try
-                {
-                    html = await FetchWithPuppeteerAsync(BaseUrl + LfgUrl, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to fetch with Puppeteer. Browser will be automatically downloaded on first run."
-                    );
-                    return players;
-                }
-            }
+            var html = await FetchWithFlareSolverrAsync(BaseUrl + LfgUrl, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(html))
             {
@@ -217,30 +207,16 @@ public class WowProgressService : IWowProgressService
     {
         try
         {
-            string html = string.Empty;
-            var usePuppeteer = _configuration.GetValue<bool>("UsePuppeteer", true);
+            _logger.LogInformation(
+                "Fetching player details for {CharacterName} using FlareSolverr...",
+                player.CharacterName
+            );
 
-            if (usePuppeteer)
-            {
-                _logger.LogInformation("Fetching player data using Puppeteer (real browser)...");
-
-                try
-                {
-                    html = await FetchWithPuppeteerAsync(player.CharacterUrl, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to fetch with Puppeteer. Browser will be automatically downloaded on first run."
-                    );
-                    return player;
-                }
-            }
+            var html = await FetchWithFlareSolverrAsync(player.CharacterUrl, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(html))
             {
-                _logger.LogInformation("No HTML content fetched, returning empty player list.");
+                _logger.LogInformation("No HTML content fetched, returning player unchanged.");
                 return player;
             }
 
@@ -309,70 +285,59 @@ public class WowProgressService : IWowProgressService
         return player;
     }
 
-    private async Task<string> FetchWithPuppeteerAsync(
+    private async Task<string> FetchWithFlareSolverrAsync(
         string url,
         CancellationToken cancellationToken
     )
     {
-        // Use Puppeteer to fetch with a real browser (bypasses bot detection)
-        // Download browser if not already present
-        var browserFetcher = new BrowserFetcher();
-        _logger.LogInformation("Checking for browser installation...");
-        await browserFetcher.DownloadAsync();
-
-        // Try headless mode - Puppeteer has better headless support than Playwright
-        var headless = _configuration.GetValue<bool>("PuppeteerHeadless", true);
-
-        await using var browser = await Puppeteer.LaunchAsync(
-            new LaunchOptions
-            {
-                Headless = headless, // Puppeteer works better in headless mode
-                Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" },
-            }
-        );
-
-        await using var page = await browser.NewPageAsync();
-
-        _logger.LogInformation("Navigating to {Url} (headless: {Headless})", url, headless);
-
-        // Navigate to the page
-        await page.GoToAsync(
-            url,
-            new NavigationOptions
-            {
-                WaitUntil = new[] { WaitUntilNavigation.DOMContentLoaded },
-                Timeout = 30000,
-            }
-        );
-
-        // Wait for Cloudflare challenge to complete
-        // Look for the rating table or wait for the challenge to disappear
         try
         {
+            var flareSolverrUrl =
+                _configuration.GetValue<string>("FlareSolverrUrl")
+                ?? "http://192.168.10.66:8191/v1";
+
+            _logger.LogInformation("Sending request to FlareSolverr for {Url}", url);
+
+            var request = new
+            {
+                cmd = "request.get",
+                url,
+                maxTimeout = 60000,
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                flareSolverrUrl,
+                request,
+                cancellationToken
+            );
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<FlareSolverrResponse>(
+                cancellationToken: cancellationToken
+            );
+
+            if (result?.Status != "ok" || result.Solution == null)
+            {
+                _logger.LogError(
+                    "FlareSolverr request failed. Status: {Status}, Message: {Message}",
+                    result?.Status,
+                    result?.Message
+                );
+                return string.Empty;
+            }
+
             _logger.LogInformation(
-                "Waiting for Cloudflare challenge to complete (this may take 20-30 seconds)..."
+                "Successfully fetched HTML from FlareSolverr (Status: {StatusCode})",
+                result.Solution.Status
             );
-            await page.WaitForSelectorAsync(
-                "table.rating",
-                new WaitForSelectorOptions { Timeout = 60000 }
-            );
-            _logger.LogInformation("Challenge completed, table loaded!");
+
+            return result.Solution.Response;
         }
-        catch (WaitTaskTimeoutException)
+        catch (Exception ex)
         {
-            _logger.LogWarning(
-                "Timeout waiting for content table. Cloudflare might be blocking automated access."
-            );
-            _logger.LogInformation(
-                "TIP: Try setting 'PuppeteerHeadless: false' to run with visible browser"
-            );
+            _logger.LogError(ex, "Error fetching data from FlareSolverr for {Url}", url);
+            return string.Empty;
         }
-
-        // Get the HTML content
-        var html = await page.GetContentAsync();
-
-        await browser.CloseAsync();
-
-        return html;
     }
 }

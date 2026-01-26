@@ -2,13 +2,3 @@
 # Test RaiderIO API
 GET https://raider.io/api/v1/characters/profile?access_key=RIOBM4smLcttuiCvZoMZtWhBp&region=eu&realm=stormscale&name=bsl&fields=raid_progression
 
-###
-# Test Flaresolverr API
-POST http://192.168.10.66:8191/v1
-Content-Type: application/json
-
-{
-  "cmd": "request.get",
-  "url": "https://www.wowprogress.com/gearscore/?lfg=1",
-  "maxTimeout": 60000
-}
