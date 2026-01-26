@@ -13,23 +13,13 @@ public interface IRaiderIOService
     );
 }
 
-public class RaiderIOService : IRaiderIOService
+public class RaiderIOService(
+    ILogger<RaiderIOService> logger,
+    HttpClient httpClient,
+    IConfiguration configuration
+) : IRaiderIOService
 {
-    private readonly ILogger<RaiderIOService> _logger;
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
     private const string BaseUrl = "https://raider.io/api/v1/characters/profile";
-
-    public RaiderIOService(
-        ILogger<RaiderIOService> logger,
-        HttpClient httpClient,
-        IConfiguration configuration
-    )
-    {
-        _logger = logger;
-        _httpClient = httpClient;
-        _configuration = configuration;
-    }
 
     public async Task<(RaiderIOProfile?, List<string>)> GetCharacterProfileAsync(
         string region,
@@ -40,10 +30,10 @@ public class RaiderIOService : IRaiderIOService
     {
         try
         {
-            var apiKey = _configuration["RaiderIO:ApiKey"];
+            var apiKey = configuration["RaiderIO:ApiKey"];
             if (string.IsNullOrEmpty(apiKey))
             {
-                _logger.LogWarning("RaiderIO API key not configured");
+                logger.LogWarning("RaiderIO API key not configured");
                 return (null, new List<string> { "No raid data" });
             }
 
@@ -53,18 +43,18 @@ public class RaiderIOService : IRaiderIOService
             var url =
                 $"{BaseUrl}?access_key={apiKey}&region={region}&realm={normalizedRealm}&name={characterName}&fields=raid_progression";
 
-            _logger.LogDebug(
+            logger.LogDebug(
                 "Fetching RaiderIO profile for {Character} on {Realm} ({Region})",
                 characterName,
                 normalizedRealm,
                 region
             );
 
-            var response = await _httpClient.GetAsync(url, cancellationToken);
+            var response = await httpClient.GetAsync(url, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Failed to fetch RaiderIO profile for {Character}. Status: {Status}",
                     characterName,
                     response.StatusCode
@@ -80,7 +70,7 @@ public class RaiderIOService : IRaiderIOService
 
             if (profile != null)
             {
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Successfully fetched raid progression for {Character}: {Summary}",
                     characterName,
                     GetRaidProgressionSummary(profile)
@@ -91,7 +81,7 @@ public class RaiderIOService : IRaiderIOService
         }
         catch (Exception ex)
         {
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "Error fetching RaiderIO profile for {Character} on {Realm}",
                 characterName,

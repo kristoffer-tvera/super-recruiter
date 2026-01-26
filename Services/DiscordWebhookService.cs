@@ -11,22 +11,13 @@ public interface IDiscordWebhookService
     );
 }
 
-public class DiscordWebhookService : IDiscordWebhookService
+public class DiscordWebhookService(
+    HttpClient httpClient,
+    ILogger<DiscordWebhookService> logger,
+    IConfiguration configuration
+) : IDiscordWebhookService
 {
-    private readonly ILogger<DiscordWebhookService> _logger;
-    private readonly HttpClient _httpClient;
-    private readonly string? _webhookUrl;
-
-    public DiscordWebhookService(
-        HttpClient httpClient,
-        ILogger<DiscordWebhookService> logger,
-        IConfiguration configuration
-    )
-    {
-        _httpClient = httpClient;
-        _logger = logger;
-        _webhookUrl = configuration["Discord:WebhookUrl"];
-    }
+    private readonly string? _webhookUrl = configuration["Discord:WebhookUrl"];
 
     public async Task SendNewPlayersNotificationAsync(
         List<Player> newPlayers,
@@ -35,13 +26,13 @@ public class DiscordWebhookService : IDiscordWebhookService
     {
         if (newPlayers.Count == 0)
         {
-            _logger.LogDebug("No new players to notify about");
+            logger.LogDebug("No new players to notify about");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_webhookUrl))
         {
-            _logger.LogWarning("Discord webhook URL not configured");
+            logger.LogWarning("Discord webhook URL not configured");
             return;
         }
 
@@ -75,12 +66,12 @@ public class DiscordWebhookService : IDiscordWebhookService
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync(_webhookUrl, content, cancellationToken);
+            var response = await httpClient.PostAsync(_webhookUrl, content, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError(
+                logger.LogError(
                     "Discord webhook request failed with status {StatusCode}: {ResponseContent}",
                     response.StatusCode,
                     responseContent
@@ -88,11 +79,11 @@ public class DiscordWebhookService : IDiscordWebhookService
                 response.EnsureSuccessStatusCode();
             }
 
-            _logger.LogInformation("Successfully sent Discord notification");
+            logger.LogInformation("Successfully sent Discord notification");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending Discord webhook notification");
+            logger.LogError(ex, "Error sending Discord webhook notification");
         }
     }
 }

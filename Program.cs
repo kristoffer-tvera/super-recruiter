@@ -7,6 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHttpClient<IWowProgressService, WowProgressService>();
 builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
 builder.Services.AddHttpClient<IRaiderIOService, RaiderIOService>();
+builder.Services.AddHttpClient<IWarcraftLogsService, WarcraftLogsService>();
 
 // Register the worker
 builder.Services.AddHostedService<Worker>();

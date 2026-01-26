@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net.Http.Json;
-using System.Text.Json;
 using HtmlAgilityPack;
 using SuperRecruiter.Models;
 
@@ -17,24 +16,14 @@ public interface IWowProgressService
     );
 }
 
-public class WowProgressService : IWowProgressService
+public class WowProgressService(
+    ILogger<WowProgressService> logger,
+    HttpClient httpClient,
+    IConfiguration configuration
+) : IWowProgressService
 {
-    private readonly ILogger<WowProgressService> _logger;
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
     private const string BaseUrl = "https://www.wowprogress.com";
     private const string LfgUrl = "/gearscore/eu?lfg=1&sortby=ts";
-
-    public WowProgressService(
-        ILogger<WowProgressService> logger,
-        HttpClient httpClient,
-        IConfiguration configuration
-    )
-    {
-        _logger = logger;
-        _httpClient = httpClient;
-        _configuration = configuration;
-    }
 
     public async Task<List<Player>> GetLookingForGuildPlayersAsync(
         CancellationToken cancellationToken = default
@@ -44,13 +33,13 @@ public class WowProgressService : IWowProgressService
 
         try
         {
-            _logger.LogInformation("Fetching player data using FlareSolverr...");
+            logger.LogInformation("Fetching player data using FlareSolverr...");
 
             var html = await FetchWithFlareSolverrAsync(BaseUrl + LfgUrl, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(html))
             {
-                _logger.LogInformation("No HTML content fetched, returning empty player list.");
+                logger.LogInformation("No HTML content fetched, returning empty player list.");
                 return players;
             }
 
@@ -65,19 +54,19 @@ public class WowProgressService : IWowProgressService
             {
                 // Try alternative selector
                 rows = doc.DocumentNode.SelectNodes("//table//tr[position()>1]");
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Rating table not found, trying generic table. Found {Count} rows",
                     rows?.Count ?? 0
                 );
 
                 // Save HTML to file for inspection
                 await File.WriteAllTextAsync("debug_output.html", html);
-                _logger.LogInformation("Saved HTML to debug_output.html for inspection");
+                logger.LogInformation("Saved HTML to debug_output.html for inspection");
             }
 
             if (rows == null)
             {
-                _logger.LogWarning("No player rows found in the table");
+                logger.LogWarning("No player rows found in the table");
                 return players;
             }
 
@@ -165,7 +154,7 @@ public class WowProgressService : IWowProgressService
                     {
                         // Fallback to current time if parsing fails
                         lastUpdated = DateTime.UtcNow;
-                        _logger.LogWarning(
+                        logger.LogWarning(
                             "Failed to parse timestamp for player, using current time"
                         );
                     }
@@ -186,15 +175,15 @@ public class WowProgressService : IWowProgressService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error parsing player row");
+                    logger.LogWarning(ex, "Error parsing player row");
                 }
             }
 
-            _logger.LogInformation("Successfully parsed {Count} players", players.Count);
+            logger.LogInformation("Successfully parsed {Count} players", players.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching or parsing WoWProgress data");
+            logger.LogError(ex, "Error fetching or parsing WoWProgress data");
         }
 
         return players;
@@ -207,7 +196,7 @@ public class WowProgressService : IWowProgressService
     {
         try
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Fetching player details for {CharacterName} using FlareSolverr...",
                 player.CharacterName
             );
@@ -216,7 +205,7 @@ public class WowProgressService : IWowProgressService
 
             if (string.IsNullOrWhiteSpace(html))
             {
-                _logger.LogInformation("No HTML content fetched, returning player unchanged.");
+                logger.LogInformation("No HTML content fetched, returning player unchanged.");
                 return player;
             }
 
@@ -263,7 +252,7 @@ public class WowProgressService : IWowProgressService
                     player.Bio = commentaryDiv.InnerText.Trim();
                 }
 
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Successfully parsed details for {CharacterName}: BattleTag={BattleTag}",
                     player.CharacterName,
                     player.BattleTag
@@ -271,7 +260,7 @@ public class WowProgressService : IWowProgressService
             }
             else
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "No registeredTo div found for {CharacterName}. Character may not have a profile.",
                     player.CharacterName
                 );
@@ -279,7 +268,7 @@ public class WowProgressService : IWowProgressService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching or parsing WoWProgress data");
+            logger.LogError(ex, "Error fetching or parsing WoWProgress data");
         }
 
         return player;
@@ -293,10 +282,9 @@ public class WowProgressService : IWowProgressService
         try
         {
             var flareSolverrUrl =
-                _configuration.GetValue<string>("FlareSolverrUrl")
-                ?? "http://192.168.10.66:8191/v1";
+                configuration.GetValue<string>("FlareSolverrUrl") ?? "http://192.168.10.66:8191/v1";
 
-            _logger.LogInformation("Sending request to FlareSolverr for {Url}", url);
+            logger.LogInformation("Sending request to FlareSolverr for {Url}", url);
 
             var request = new
             {
@@ -305,7 +293,7 @@ public class WowProgressService : IWowProgressService
                 maxTimeout = 60000,
             };
 
-            var response = await _httpClient.PostAsJsonAsync(
+            var response = await httpClient.PostAsJsonAsync(
                 flareSolverrUrl,
                 request,
                 cancellationToken
@@ -319,7 +307,7 @@ public class WowProgressService : IWowProgressService
 
             if (result?.Status != "ok" || result.Solution == null)
             {
-                _logger.LogError(
+                logger.LogError(
                     "FlareSolverr request failed. Status: {Status}, Message: {Message}",
                     result?.Status,
                     result?.Message
@@ -327,7 +315,7 @@ public class WowProgressService : IWowProgressService
                 return string.Empty;
             }
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Successfully fetched HTML from FlareSolverr (Status: {StatusCode})",
                 result.Solution.Status
             );
@@ -336,7 +324,7 @@ public class WowProgressService : IWowProgressService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching data from FlareSolverr for {Url}", url);
+            logger.LogError(ex, "Error fetching data from FlareSolverr for {Url}", url);
             return string.Empty;
         }
     }

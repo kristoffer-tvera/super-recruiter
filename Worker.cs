@@ -3,37 +3,24 @@ using SuperRecruiter.Services;
 
 namespace SuperRecruiter;
 
-public class Worker : BackgroundService
+public class Worker(
+    ILogger<Worker> logger,
+    IWowProgressService wowProgressService,
+    IDiscordWebhookService discordWebhookService,
+    IRaiderIOService raiderIOService,
+    IWarcraftLogsService warcraftLogsService,
+    IConfiguration configuration
+) : BackgroundService
 {
-    private readonly ILogger<Worker> _logger;
-    private readonly IWowProgressService _wowProgressService;
-    private readonly IDiscordWebhookService _discordWebhookService;
-    private readonly IRaiderIOService _raiderIOService;
-    private readonly IConfiguration _configuration;
     private HashSet<string> _seenPlayers = new();
-
-    public Worker(
-        ILogger<Worker> logger,
-        IWowProgressService wowProgressService,
-        IDiscordWebhookService discordWebhookService,
-        IRaiderIOService raiderIOService,
-        IConfiguration configuration
-    )
-    {
-        _logger = logger;
-        _wowProgressService = wowProgressService;
-        _discordWebhookService = discordWebhookService;
-        _raiderIOService = raiderIOService;
-        _configuration = configuration;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Get polling interval from config (default to 5 minutes)
-        var pollingIntervalMinutes = _configuration.GetValue<int>("PollingIntervalMinutes", 5);
+        var pollingIntervalMinutes = configuration.GetValue<int>("PollingIntervalMinutes", 5);
         var pollingInterval = TimeSpan.FromMinutes(pollingIntervalMinutes);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Super Recruiter worker starting. Polling interval: {Interval} minutes",
             pollingIntervalMinutes
         );
@@ -45,6 +32,15 @@ public class Worker : BackgroundService
         //     stoppingToken
         // );
 
+        var bslPlayer = new Player { CharacterName = "Bsl", Realm = "Stormscale" };
+
+        var bslData = await warcraftLogsService.GetCharacterDataAsync(
+            bslPlayer,
+            stoppingToken
+        );
+
+        return;
+
         // RETURN;
 
         // Initial delay to let services initialize
@@ -54,9 +50,9 @@ public class Worker : BackgroundService
         {
             try
             {
-                _logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
+                logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-                var players = await _wowProgressService.GetLookingForGuildPlayersAsync(
+                var players = await wowProgressService.GetLookingForGuildPlayersAsync(
                     stoppingToken
                 );
 
@@ -81,7 +77,7 @@ public class Worker : BackgroundService
 
                     if (newPlayers.Count > 0)
                     {
-                        _logger.LogInformation(
+                        logger.LogInformation(
                             "Found {NewCount} new player(s) out of {TotalCount} total",
                             newPlayers.Count,
                             players.Count
@@ -91,7 +87,7 @@ public class Worker : BackgroundService
                         for (int i = 0; i < newPlayers.Count; i += 10)
                         {
                             var chunk = newPlayers.Skip(i).Take(10).ToList();
-                            await _discordWebhookService.SendNewPlayersNotificationAsync(
+                            await discordWebhookService.SendNewPlayersNotificationAsync(
                                 chunk,
                                 stoppingToken
                             );
@@ -99,7 +95,7 @@ public class Worker : BackgroundService
                     }
                     else
                     {
-                        _logger.LogInformation(
+                        logger.LogInformation(
                             "No new players found. Total players tracked: {Count}",
                             _seenPlayers.Count
                         );
@@ -108,7 +104,7 @@ public class Worker : BackgroundService
                     // Cleanup old entries if the set gets too large (keep last 1000)
                     if (_seenPlayers.Count > 1000)
                     {
-                        _logger.LogInformation("Cleaning up player tracking cache");
+                        logger.LogInformation("Cleaning up player tracking cache");
                         _seenPlayers = new HashSet<string>(
                             _seenPlayers.Skip(_seenPlayers.Count - 500)
                         );
@@ -116,18 +112,18 @@ public class Worker : BackgroundService
                 }
                 else
                 {
-                    _logger.LogWarning("No players found in the scan");
+                    logger.LogWarning("No players found in the scan");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during player scan");
+                logger.LogError(ex, "Error during player scan");
             }
 
-            _logger.LogInformation("Next scan in {Interval} minutes", pollingIntervalMinutes);
+            logger.LogInformation("Next scan in {Interval} minutes", pollingIntervalMinutes);
             await Task.Delay(pollingInterval, stoppingToken);
         }
 
-        _logger.LogInformation("Super Recruiter worker stopping");
+        logger.LogInformation("Super Recruiter worker stopping");
     }
 }
