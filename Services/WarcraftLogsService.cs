@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
@@ -36,7 +37,7 @@ public class WarcraftLogsService(
             // Ensure we have a valid access token
             await EnsureAccessTokenAsync(cancellationToken);
 
-            // Build the GraphQL query
+            // Build the GraphQL query // Might need to add zoneRankings(metric: hps)
             var query =
                 $"{{ characterData {{ character(name: \"{player.CharacterName}\", serverSlug: \"{player.RealmSlug}\", serverRegion: \"EU\") {{ id name level classID zoneRankings }} }} }}";
 
@@ -60,7 +61,7 @@ public class WarcraftLogsService(
             );
 
             // Parse the response
-            var result = JsonSerializer.Deserialize<JsonElement>(responseContent);
+            var result = JsonSerializer.Deserialize<WarcraftLogsCharacterResponse>(responseContent);
 
             // TODO: Extract relevant data from the response and populate player object
             // For now, just log the response
@@ -119,7 +120,10 @@ public class WarcraftLogsService(
 
         if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.AccessToken))
         {
-            throw new InvalidOperationException("Failed to obtain WarcraftLogs access token");
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException(
+                $"Failed to obtain WarcraftLogs access token: {errorContent}"
+            );
         }
 
         _accessToken = tokenResponse.AccessToken;
@@ -133,8 +137,13 @@ public class WarcraftLogsService(
 
     private class WarcraftLogsTokenResponse
     {
+        [JsonPropertyName("access_token")]
         public string AccessToken { get; set; } = string.Empty;
+
+        [JsonPropertyName("token_type")]
         public string TokenType { get; set; } = string.Empty;
+
+        [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; set; }
     }
 }
