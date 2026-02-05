@@ -1,5 +1,6 @@
 // Root myDeserializedClass = JsonSerializer.Deserialize<Root>(myJsonResponse);
 using System.Text.Json.Serialization;
+using SuperRecruiter.Converter;
 
 public class AllStar
 {
@@ -16,16 +17,19 @@ public class AllStar
     public int PossiblePoints { get; set; }
 
     [JsonPropertyName("rank")]
-    public int Rank { get; set; }
+    [JsonConverter(typeof(NumberOrStringConverter))]
+    public string Rank { get; set; } // can be double or string
 
     [JsonPropertyName("regionRank")]
-    public int RegionRank { get; set; }
+    [JsonConverter(typeof(NumberOrStringConverter))]
+    public string RegionRank { get; set; }
 
     [JsonPropertyName("serverRank")]
     public int ServerRank { get; set; }
 
     [JsonPropertyName("rankPercent")]
-    public double RankPercent { get; set; }
+    [JsonConverter(typeof(NumberOrStringConverter))]
+    public string RankPercent { get; set; }
 
     [JsonPropertyName("total")]
     public int Total { get; set; }

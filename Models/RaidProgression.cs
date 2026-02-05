@@ -11,8 +11,11 @@ public class RaiderIOProfile
     public int Achievement_points { get; set; }
     public string Realm { get; set; } = string.Empty;
     public string Region { get; set; } = string.Empty;
+    public string Thumbnail_url { get; set; } = string.Empty;
     public string Profile_url { get; set; } = string.Empty;
     public Dictionary<string, RaidTier>? Raid_progression { get; set; }
+    public List<string>? Raid_progression_summary { get; set; }
+    public List<RaidTierCurve>? Raid_achievement_curve { get; set; }
 }
 
 public class RaidTier
@@ -22,4 +25,11 @@ public class RaidTier
     public int Normal_bosses_killed { get; set; }
     public int Heroic_bosses_killed { get; set; }
     public int Mythic_bosses_killed { get; set; }
+}
+
+public class RaidTierCurve
+{
+    public string Raid { get; set; } = string.Empty;
+    public DateTime Aotc { get; set; }
+    public DateTime Cutting_edge { get; set; }
 }

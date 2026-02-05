@@ -9,7 +9,7 @@ namespace SuperRecruiter.Services;
 
 public interface IWarcraftLogsService
 {
-    Task<Player> GetCharacterDataAsync(
+    Task<WarcraftLogsCharacterResponse?> GetCharacterDataAsync(
         Player player,
         CancellationToken cancellationToken = default
     );
@@ -27,7 +27,7 @@ public class WarcraftLogsService(
     private const string TokenUrl = "https://www.warcraftlogs.com/oauth/token";
     private const string GraphQLUrl = "https://www.warcraftlogs.com/api/v2/client";
 
-    public async Task<Player> GetCharacterDataAsync(
+    public async Task<WarcraftLogsCharacterResponse?> GetCharacterDataAsync(
         Player player,
         CancellationToken cancellationToken = default
     )
@@ -54,7 +54,7 @@ public class WarcraftLogsService(
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogInformation(
+            logger.LogDebug(
                 "WarcraftLogs response for {CharacterName}: {Response}",
                 player.CharacterName,
                 responseContent
@@ -66,7 +66,7 @@ public class WarcraftLogsService(
             // TODO: Extract relevant data from the response and populate player object
             // For now, just log the response
 
-            return player;
+            return result;
         }
         catch (Exception ex)
         {
@@ -75,7 +75,7 @@ public class WarcraftLogsService(
                 "Error fetching WarcraftLogs data for {CharacterName}",
                 player.CharacterName
             );
-            return player;
+            return null;
         }
     }
 

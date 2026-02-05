@@ -25,24 +25,6 @@ public class Worker(
             pollingIntervalMinutes
         );
 
-        // var (bslProfile, bslRaidProgress) = await _raiderIOService.GetCharacterProfileAsync(
-        //     "eu",
-        //     "stormscale",
-        //     "bsl",
-        //     stoppingToken
-        // );
-
-        var bslPlayer = new Player { CharacterName = "Bsl", Realm = "Stormscale" };
-
-        var bslData = await warcraftLogsService.GetCharacterDataAsync(
-            bslPlayer,
-            stoppingToken
-        );
-
-        return;
-
-        // RETURN;
-
         // Initial delay to let services initialize
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
@@ -52,11 +34,22 @@ public class Worker(
             {
                 logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-                var players = await wowProgressService.GetLookingForGuildPlayersAsync(
-                    stoppingToken
-                );
+                // var players = await wowProgressService.GetLookingForGuildPlayersAsync(
+                //     stoppingToken
+                // );
 
-                players = players.Take(3).ToList(); // while debugging
+                var players = new List<Player>
+                {
+                    new Player
+                    {
+                        CharacterName = "Bsl",
+                        Realm = "Stormscale",
+                        Class = "Druid",
+                        ItemLevel = 480,
+                    },
+                };
+
+                players = players.Take(1).ToList(); // while debugging
 
                 if (players.Count > 0)
                 {
@@ -83,12 +76,24 @@ public class Worker(
                             players.Count
                         );
 
-                        // Break into chunks of 10 for Discord limitation
-                        for (int i = 0; i < newPlayers.Count; i += 10)
+                        foreach (var newPlayer in newPlayers)
                         {
-                            var chunk = newPlayers.Skip(i).Take(10).ToList();
-                            await discordWebhookService.SendNewPlayersNotificationAsync(
-                                chunk,
+                            var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
+                                "eu",
+                                newPlayer.RealmSlug,
+                                newPlayer.CharacterName,
+                                stoppingToken
+                            );
+
+                            var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
+                                newPlayer,
+                                stoppingToken
+                            );
+
+                            await discordWebhookService.SendNewPlayerNotificationAsync(
+                                newPlayer,
+                                raiderIoData,
+                                warcraftLogsData,
                                 stoppingToken
                             );
                         }

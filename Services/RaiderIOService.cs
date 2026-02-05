@@ -5,7 +5,7 @@ namespace SuperRecruiter.Services;
 
 public interface IRaiderIOService
 {
-    Task<(RaiderIOProfile?, List<string>)> GetCharacterProfileAsync(
+    Task<RaiderIOProfile?> GetCharacterProfileAsync(
         string region,
         string realm,
         string characterName,
@@ -21,7 +21,7 @@ public class RaiderIOService(
 {
     private const string BaseUrl = "https://raider.io/api/v1/characters/profile";
 
-    public async Task<(RaiderIOProfile?, List<string>)> GetCharacterProfileAsync(
+    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(
         string region,
         string realm,
         string characterName,
@@ -34,14 +34,36 @@ public class RaiderIOService(
             if (string.IsNullOrEmpty(apiKey))
             {
                 logger.LogWarning("RaiderIO API key not configured");
-                return (null, new List<string> { "No raid data" });
+                return null;
             }
 
             // Normalize realm name (replace spaces with hyphens, lowercase)
             var normalizedRealm = realm.ToLowerInvariant().Replace(" ", "-");
 
+            var tierSlugs = new[]
+            {
+                "manaforge-omega",
+                "liberation-of-undermine",
+                "nerubar-palace",
+                "amirdrassil-the-dreams-hope",
+                "aberrus-the-shadowed-crucible",
+                "vault-of-the-incarnates",
+            };
+
+            var queryStringParameters = new Dictionary<string, string>
+            {
+                { "access_key", apiKey },
+                { "region", region },
+                { "realm", normalizedRealm },
+                { "name", characterName },
+                {
+                    "fields",
+                    $"raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', tierSlugs)}"
+                },
+            };
+
             var url =
-                $"{BaseUrl}?access_key={apiKey}&region={region}&realm={normalizedRealm}&name={characterName}&fields=raid_progression";
+                $"{BaseUrl}?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
 
             logger.LogDebug(
                 "Fetching RaiderIO profile for {Character} on {Realm} ({Region})",
@@ -59,7 +81,7 @@ public class RaiderIOService(
                     characterName,
                     response.StatusCode
                 );
-                return (null, new List<string> { "No raid data" });
+                return null;
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -77,7 +99,17 @@ public class RaiderIOService(
                 );
             }
 
-            return (profile, GetRaidProgressionSummary(profile));
+            if (profile?.Raid_achievement_curve != null)
+                for (int i = 0; i < profile.Raid_achievement_curve?.Count; i++)
+                {
+                    var raidSlug = profile.Raid_achievement_curve.ElementAt(i).Raid;
+                    var raidName = GetNameFromKebabCase(raidSlug);
+                    profile.Raid_achievement_curve.ElementAt(i).Raid = raidName;
+                }
+
+            profile?.Raid_progression_summary = GetRaidProgressionSummary(profile);
+
+            return profile;
         }
         catch (Exception ex)
         {
@@ -87,7 +119,7 @@ public class RaiderIOService(
                 characterName,
                 realm
             );
-            return (null, new List<string> { "No raid data" });
+            return null;
         }
     }
 
@@ -106,7 +138,7 @@ public class RaiderIOService(
                 ? "No progress"
                 : tier.Value.Summary;
 
-            summaries.Add($"{tierName}: {tierProgress}");
+            summaries.Add($"{tierName} | {tierProgress}");
         }
 
         return summaries;

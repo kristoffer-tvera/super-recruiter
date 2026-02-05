@@ -9,6 +9,13 @@ public interface IDiscordWebhookService
         List<Player> newPlayers,
         CancellationToken cancellationToken = default
     );
+
+    Task SendNewPlayerNotificationAsync(
+        Player newPlayer,
+        RaiderIOProfile? raiderIoProfile = null,
+        WarcraftLogsCharacterResponse? warcraftLogsData = null,
+        CancellationToken cancellationToken = default
+    );
 }
 
 public class DiscordWebhookService(
@@ -35,31 +42,111 @@ public class DiscordWebhookService(
             logger.LogWarning("Discord webhook URL not configured");
             return;
         }
+        foreach (var p in newPlayers)
+        {
+            await SendNewPlayerNotificationAsync(p, null, null, cancellationToken);
+        }
+    }
 
+    public async Task SendNewPlayerNotificationAsync(
+        Player newPlayer,
+        RaiderIOProfile? raiderIoProfile = null,
+        WarcraftLogsCharacterResponse? warcraftLogsData = null,
+        CancellationToken cancellationToken = default
+    )
+    {
         try
         {
-            var embeds = new List<object>();
-            foreach (var p in newPlayers)
+            var thumbnail = raiderIoProfile?.Thumbnail_url ?? "";
+            var links = new List<string>
             {
-                var raiderIoUrl =
-                    $"https://raider.io/characters/eu/{p.RealmSlug}/{p.CharacterName}";
-                var warcraftLogsUrl =
-                    $"https://www.warcraftlogs.com/character/eu/{p.RealmSlug}/{p.CharacterName}";
-                embeds.Add(
-                    new
+                $"[Armory](https://worldofwarcraft.blizzard.com/en-gb/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+                raiderIoProfile != null
+                    ? $"[RaiderIO]({raiderIoProfile.Profile_url})"
+                    : "RaiderIO (no data)",
+                $"[WoWProgress](https://www.wowprogress.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+                $"[WCL](https://www.warcraftlogs.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+            };
+
+            var rankings = warcraftLogsData?.Data?.CharacterData.Character.ZoneRankings;
+
+            var embeds = new List<object>
+            {
+                new
+                {
+                    title = $"**{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
+                    description = $"Bio here",
+                    // url = newPlayer.CharacterUrl,
+                    color = 3447003, // Blue color
+                    footer = new { text = $"Last updated: {newPlayer.LastUpdated:g}" },
+                    thumbnail = new { url = thumbnail },
+                    fields = new[]
                     {
-                        title = $"{p.CharacterName} {p.Class}",
-                        description = $"**Item Level:** {p.ItemLevel:F2}\n**Realm:** {p.Realm}\n**[Raider.IO]({raiderIoUrl})** | **[Warcraft Logs]({warcraftLogsUrl})**",
-                        url = p.CharacterUrl,
-                        color = 3447003, // Blue color
-                        footer = new { text = $"Last updated: {p.LastUpdated:g}" },
-                    }
-                );
-            }
+                        new
+                        {
+                            name = "Warcraftlogs - Allstars",
+                            value = rankings != null
+                                ? string.Join(
+                                    "\n",
+                                    rankings.AllStars.Select(r =>
+                                        $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points} out of {r.PossiblePoints})"
+                                    )
+                                )
+                                : "No WarcraftLogs data",
+                            inline = false,
+                        },
+                        new
+                        {
+                            name = "Warcraftlogs - All bosses (Current tier)",
+                            // value = "**Boss 1** (15)  | Best: 45% (400 ilvl, Restoration) | Median: 33%\n**Boss 2**  (6) | Best: 65% (200 ilvl, Restoration) | Median: 13%",
+                            value = rankings != null
+                                ? string.Join(
+                                    "\n",
+                                    rankings.Rankings.Select(rank =>
+                                        $"{rank.Encounter.Name} ({rank.TotalKills}) \nBest: {rank.RankPercent:F2}% | Median: {rank.MedianPercent:F2}%"
+                                    )
+                                )
+                                : "No WarcraftLogs data",
+                            inline = false,
+                        },
+                        new
+                        {
+                            name = "Ahead of the Curve, Cutting Edge",
+                            // value = "**Raid 1** | AOTC: 01 01 2025 | CE: 05 01 2026\n**Raid 2** | AOTC: 01 01 2025 | CE: 05 01 2026",
+                            value = raiderIoProfile?.Raid_achievement_curve != null
+                                ? string.Join(
+                                    "\n",
+                                    raiderIoProfile.Raid_achievement_curve.Select(tier =>
+                                        // $"{tier.Raid} \nHeroic: {tier.Aotc.ToString("dd.MM.yyyy") ?? "N/A"} | Mythic: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
+                                        $"{tier.Raid} \nMythic: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
+                                    )
+                                )
+                                : "No raid data",
+                            inline = false,
+                        },
+                        new
+                        {
+                            name = "Current Expansion",
+                            value = raiderIoProfile?.Raid_progression_summary != null
+                                ? string.Join("\n", raiderIoProfile.Raid_progression_summary)
+                                : "No raid data",
+                            inline = false,
+                        },
+                        new
+                        {
+                            name = "External Sites",
+                            value = string.Join(" | ", links),
+                            inline = false,
+                        },
+                    },
+                },
+            };
 
             var payload = new
             {
-                content = $"🔔 **{newPlayers.Count} new player(s) looking for guild!**",
+                content = $"**{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
+                tts = false,
+                avatar_url = thumbnail,
                 embeds,
             };
 
