@@ -77,7 +77,7 @@ public class DiscordWebhookService(
                     title = $"**{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
                     description = $"Bio here",
                     // url = newPlayer.CharacterUrl,
-                    color = 3447003, // Blue color
+                    // Blue color
                     footer = new { text = $"Last updated: {newPlayer.LastUpdated:g}" },
                     thumbnail = new { url = thumbnail },
                     fields = new[]
@@ -89,7 +89,7 @@ public class DiscordWebhookService(
                                 ? string.Join(
                                     "\n",
                                     rankings.AllStars.Select(r =>
-                                        $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points} out of {r.PossiblePoints})"
+                                        $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})"
                                     )
                                 )
                                 : "No WarcraftLogs data",
@@ -98,12 +98,11 @@ public class DiscordWebhookService(
                         new
                         {
                             name = "Warcraftlogs - All bosses (Current tier)",
-                            // value = "**Boss 1** (15)  | Best: 45% (400 ilvl, Restoration) | Median: 33%\n**Boss 2**  (6) | Best: 65% (200 ilvl, Restoration) | Median: 13%",
                             value = rankings != null
                                 ? string.Join(
-                                    "\n",
+                                    "\n\n",
                                     rankings.Rankings.Select(rank =>
-                                        $"{rank.Encounter.Name} ({rank.TotalKills}) \nBest: {rank.RankPercent:F2}% | Median: {rank.MedianPercent:F2}%"
+                                        $"{rank.Encounter.Name} ({rank.TotalKills}) \nBest: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}%"
                                     )
                                 )
                                 : "No WarcraftLogs data",
@@ -112,13 +111,12 @@ public class DiscordWebhookService(
                         new
                         {
                             name = "Ahead of the Curve, Cutting Edge",
-                            // value = "**Raid 1** | AOTC: 01 01 2025 | CE: 05 01 2026\n**Raid 2** | AOTC: 01 01 2025 | CE: 05 01 2026",
                             value = raiderIoProfile?.Raid_achievement_curve != null
                                 ? string.Join(
                                     "\n",
                                     raiderIoProfile.Raid_achievement_curve.Select(tier =>
                                         // $"{tier.Raid} \nHeroic: {tier.Aotc.ToString("dd.MM.yyyy") ?? "N/A"} | Mythic: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
-                                        $"{tier.Raid} \nMythic: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
+                                        $"{tier.Raid} | M: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
                                     )
                                 )
                                 : "No raid data",
