@@ -34,23 +34,23 @@ public class Worker(
             {
                 logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-                // var players = await wowProgressService.GetLookingForGuildPlayersAsync(
-                //     stoppingToken
-                // );
+                var players = await wowProgressService.GetLookingForGuildPlayersAsync(
+                    stoppingToken
+                );
 
-                var players = new List<Player>
-                {
-                    new Player
-                    {
-                        CharacterName = "Bsl",
-                        Realm = "Stormscale",
-                        Class = "Druid",
-                        ItemLevel = 160,
-                        Bio = "I am a test player",
-                    },
-                };
+                // var players = new List<Player>
+                // {
+                //     new Player
+                //     {
+                //         CharacterName = "Bsl",
+                //         Realm = "Stormscale",
+                //         Class = "Druid",
+                //         ItemLevel = 160,
+                //         Bio = "I am a test player",
+                //     },
+                // };
 
-                players = players.Take(1).ToList(); // while debugging
+                players = players.Take(3).ToList(); // while debugging
 
                 if (players.Count > 0)
                 {
@@ -97,6 +97,8 @@ public class Worker(
                                 warcraftLogsData,
                                 stoppingToken
                             );
+
+                            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); // small delay between notifications
                         }
                     }
                     else

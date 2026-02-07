@@ -72,8 +72,10 @@ public class WarcraftLogsService(
         {
             logger.LogError(
                 ex,
-                "Error fetching WarcraftLogs data for {CharacterName}",
-                player.CharacterName
+                "Error fetching WarcraftLogs data for {CharacterName} on {Realm}: {Message}",
+                player.CharacterName,
+                player.Realm,
+                ex.Message
             );
             return null;
         }

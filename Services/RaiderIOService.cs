@@ -138,7 +138,7 @@ public class RaiderIOService(
                 ? "No progress"
                 : tier.Value.Summary;
 
-            summaries.Add($"{tierName} | {tierProgress}");
+            summaries.Add($"**{tierName}** | {tierProgress}");
         }
 
         return summaries;

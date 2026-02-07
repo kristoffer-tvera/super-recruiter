@@ -98,10 +98,10 @@ public class Ranking
     public Encounter Encounter { get; set; }
 
     [JsonPropertyName("rankPercent")]
-    public double RankPercent { get; set; }
+    public double? RankPercent { get; set; }
 
     [JsonPropertyName("medianPercent")]
-    public double MedianPercent { get; set; }
+    public double? MedianPercent { get; set; }
 
     [JsonPropertyName("lockedIn")]
     public bool LockedIn { get; set; }
@@ -124,19 +124,19 @@ public class Ranking
     }
 
     [JsonPropertyName("allStars")]
-    public AllStar AllStars { get; set; }
+    public AllStar? AllStars { get; set; }
 
     [JsonPropertyName("spec")]
-    public string Spec { get; set; }
+    public string? Spec { get; set; }
 
     [JsonPropertyName("bestSpec")]
-    public string BestSpec { get; set; }
+    public string? BestSpec { get; set; }
 
     [JsonPropertyName("bestAmount")]
     public double BestAmount { get; set; }
 
     [JsonPropertyName("rankTooltip")]
-    public object RankTooltip { get; set; }
+    public object? RankTooltip { get; set; }
 
     [JsonPropertyName("bestRank")]
     public BestRank BestRank { get; set; }

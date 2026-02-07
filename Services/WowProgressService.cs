@@ -169,6 +169,7 @@ public class WowProgressService(
                         CharacterUrl = characterUrl.StartsWith("/")
                             ? BaseUrl + characterUrl
                             : characterUrl,
+                        Bio = "Placeholder before scraping character page",
                     };
 
                     players.Add(player);

@@ -77,7 +77,7 @@ public class DiscordWebhookService(
             var personContainer = new
             {
                 type = 17, // ComponentType.CONTAINER
-                accent_color = 703487,
+                accent_color = ClassColorFromClassName(newPlayer.Class),
                 components = new[]
                 {
                     new
@@ -88,7 +88,9 @@ public class DiscordWebhookService(
                     new
                     {
                         type = 10, // Text Display
-                        content = newPlayer.Bio != null ? $"{newPlayer.Bio}\n\n" : string.Empty,
+                        content = newPlayer.Bio != null
+                            ? $"{newPlayer.Bio}\n\n"
+                            : "No bio available\n\n",
                     },
                     new
                     {
@@ -101,25 +103,25 @@ public class DiscordWebhookService(
             var currentExpansionProgression = new
             {
                 type = 10, // Text Display
-                content = $"## Current Expansion Progression:\n- {(raiderIoProfile?.Raid_progression_summary != null ? string.Join("\n- ", raiderIoProfile.Raid_progression_summary) : "No raid data")}",
+                content = $"## __Current Expansion Progression__:\n- {(raiderIoProfile?.Raid_progression_summary != null ? string.Join("\n- ", raiderIoProfile.Raid_progression_summary) : "No raid data")}",
             };
 
             var wclAllstars = new
             {
                 type = 10, // Text Display
-                content = $"## WarcraftLogs - Allstars:\n{(warcraftLogsZoneRankings != null ? string.Join("\n", warcraftLogsZoneRankings.AllStars.Select(r => $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})")) : "No WarcraftLogs data")}",
+                content = $"## __WarcraftLogs - Allstars__:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.AllStars.Select(r => $"**{r.Spec}** | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})")) : "No WarcraftLogs data")}",
             };
 
             var wclBosses = new
             {
                 type = 10, // Text Display
-                content = $"## WarcraftLogs - Bosses current tier:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.Rankings.Select(rank => $"__{rank.Encounter.Name}__ as {rank.Spec} | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}")) : "No WarcraftLogs data")}",
+                content = $"## __WarcraftLogs - Bosses current tier__:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.Rankings.Select(rank => $"**{rank.Encounter.Name}** as {rank.Spec} | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}")) : "No WarcraftLogs data")}",
             };
 
             var aotc = new
             {
                 type = 10, // Text Display
-                content = $"## Ahead of the Curve, Cutting Edge:\n- {(raiderIoProfile?.Raid_achievement_curve != null ? string.Join("\n- ", raiderIoProfile.Raid_achievement_curve.Select(tier => $"__{tier.Raid}__ | {(tier.Cutting_edge != null ? "Mythic | " + tier.Cutting_edge.Value.ToString("dd.MM.yyyy") : tier.Aotc != null ? "Heroic | " + tier.Aotc.Value.ToString("dd.MM.yyyy") : "Uncleared")}")) : "No RaiderIO data")}",
+                content = $"## __Ahead of the Curve, Cutting Edge__:\n- {(raiderIoProfile?.Raid_achievement_curve != null ? string.Join("\n- ", raiderIoProfile.Raid_achievement_curve.Select(tier => $"**{tier.Raid}** | {(tier.Cutting_edge != null ? "Mythic | " + tier.Cutting_edge.Value.ToString("dd.MM.yyyy") : tier.Aotc != null ? "Heroic | " + tier.Aotc.Value.ToString("dd.MM.yyyy") : "Uncleared")}")) : "No RaiderIO data")}",
             };
 
             var components = new List<object>
@@ -183,5 +185,26 @@ public class DiscordWebhookService(
         {
             logger.LogError(ex, "Error sending Discord webhook notification");
         }
+    }
+
+    private int ClassColorFromClassName(string className)
+    {
+        return className.ToLower() switch
+        {
+            "death knight" => 0xC41F3B,
+            "demon hunter" => 0xA330C9,
+            "druid" => 0xFF7D0A,
+            "evoker" => 0x33937F,
+            "hunter" => 0xABD473,
+            "mage" => 0x69CCF0,
+            "monk" => 0x00FF96,
+            "paladin" => 0xF58CBA,
+            "priest" => 0xFFFFFF,
+            "rogue" => 0xFFF569,
+            "shaman" => 0x0070DE,
+            "warlock" => 0x9482C9,
+            "warrior" => 0xC79C6E,
+            _ => 0xFFFFFF, // Default to white if unknown
+        };
     }
 }
