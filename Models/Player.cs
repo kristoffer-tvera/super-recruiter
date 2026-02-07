@@ -23,6 +23,6 @@ public class Player
 
     private static string ExtractRealmSlug(string realm)
     {
-        return realm.ToLower().Replace(" ", "-").Replace("'", "-");
+        return realm.ToLower().Replace(" ", "-").Replace("'", "");
     }
 }

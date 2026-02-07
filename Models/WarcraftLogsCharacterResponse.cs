@@ -151,10 +151,10 @@ public class WarcraftLogsCharacterResponse
 public class ZoneRankings
 {
     [JsonPropertyName("bestPerformanceAverage")]
-    public double BestPerformanceAverage { get; set; }
+    public double? BestPerformanceAverage { get; set; }
 
     [JsonPropertyName("medianPerformanceAverage")]
-    public double MedianPerformanceAverage { get; set; }
+    public double? MedianPerformanceAverage { get; set; }
 
     [JsonPropertyName("difficulty")]
     public int Difficulty { get; set; }

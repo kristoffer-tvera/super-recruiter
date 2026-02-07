@@ -64,7 +64,7 @@ public class DiscordWebhookService(
                 raiderIoProfile != null
                     ? $"[RaiderIO]({raiderIoProfile.Profile_url})"
                     : "RaiderIO (no data)",
-                $"[WoWProgress](https://www.wowprogress.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+                $"[WoWProgress]({newPlayer.CharacterUrl})",
                 $"[WCL](https://www.warcraftlogs.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
             };
 
@@ -238,7 +238,7 @@ public class DiscordWebhookService(
             return $"{header}\n- No WarcraftLogs data";
 
         var best =
-            $"\n- **Best** Perf. Avg | {zoneRankings.BestPerformanceAverage:F0} **Median** Perf. Avg | {zoneRankings.MedianPerformanceAverage:F0}";
+            $"\n- **Best** Perf. Avg {zoneRankings.BestPerformanceAverage:F0}% |  **Median** Perf. Avg {zoneRankings.MedianPerformanceAverage:F0}%";
 
         var allStars = zoneRankings
             .AllStars.Select(a =>

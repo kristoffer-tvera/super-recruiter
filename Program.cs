@@ -9,8 +9,16 @@ builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
 builder.Services.AddHttpClient<IRaiderIOService, RaiderIOService>();
 builder.Services.AddHttpClient<IWarcraftLogsService, WarcraftLogsService>();
 
+// Register database service
+builder.Services.AddSingleton<IPlayerDatabaseService, PlayerDatabaseService>();
+
 // Register the worker
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
+
+// Initialize database
+var dbService = host.Services.GetRequiredService<IPlayerDatabaseService>();
+await dbService.InitializeDatabaseAsync();
+
 host.Run();
