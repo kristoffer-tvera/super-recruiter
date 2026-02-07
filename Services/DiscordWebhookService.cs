@@ -6,18 +6,24 @@ namespace SuperRecruiter.Services;
 public interface IDiscordWebhookService
 {
     Task SendNewPlayersNotificationAsync(
-        List<Player> newPlayers,
+        List<Player> players,
         CancellationToken cancellationToken = default
     );
 
     Task SendNewPlayerNotificationAsync(
-        Player newPlayer,
+        Player player,
         RaiderIOProfile? raiderIoProfile = null,
         WarcraftLogsCharacterResponse? warcraftLogsData = null,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// https://discord.com/developers/docs/components/reference
+/// </summary>
+/// <param name="httpClient"></param>
+/// <param name="logger"></param>
+/// <param name="configuration"></param>
 public class DiscordWebhookService(
     HttpClient httpClient,
     ILogger<DiscordWebhookService> logger,
@@ -27,11 +33,11 @@ public class DiscordWebhookService(
     private readonly string? _webhookUrl = configuration["Discord:WebhookUrl"];
 
     public async Task SendNewPlayersNotificationAsync(
-        List<Player> newPlayers,
+        List<Player> players,
         CancellationToken cancellationToken = default
     )
     {
-        if (newPlayers.Count == 0)
+        if (players.Count == 0)
         {
             logger.LogDebug("No new players to notify about");
             return;
@@ -42,14 +48,14 @@ public class DiscordWebhookService(
             logger.LogWarning("Discord webhook URL not configured");
             return;
         }
-        foreach (var p in newPlayers)
+        foreach (var p in players)
         {
             await SendNewPlayerNotificationAsync(p, null, null, cancellationToken);
         }
     }
 
     public async Task SendNewPlayerNotificationAsync(
-        Player newPlayer,
+        Player player,
         RaiderIOProfile? raiderIoProfile = null,
         WarcraftLogsCharacterResponse? warcraftLogsData = null,
         CancellationToken cancellationToken = default
@@ -60,12 +66,12 @@ public class DiscordWebhookService(
             var thumbnail = raiderIoProfile?.Thumbnail_url ?? "";
             var links = new List<string>
             {
-                $"[Armory](https://worldofwarcraft.blizzard.com/en-gb/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+                $"[Armory](https://worldofwarcraft.blizzard.com/en-gb/character/eu/{player.RealmSlug}/{player.CharacterName})",
                 raiderIoProfile != null
                     ? $"[RaiderIO]({raiderIoProfile.Profile_url})"
                     : "RaiderIO (no data)",
-                $"[WoWProgress]({newPlayer.CharacterUrl})",
-                $"[WCL](https://www.warcraftlogs.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
+                $"[WoWProgress]({player.CharacterUrl})",
+                $"[WCL](https://www.warcraftlogs.com/character/eu/{player.RealmSlug}/{player.CharacterName})",
             };
 
             var warcraftLogsZoneRankings = warcraftLogsData
@@ -77,25 +83,23 @@ public class DiscordWebhookService(
             var personContainer = new
             {
                 type = 17, // ComponentType.CONTAINER
-                accent_color = ClassColorFromClassName(newPlayer.Class),
+                accent_color = ClassColorFromClassName(player.Class),
                 components = new[]
                 {
                     new
                     {
                         type = 10, // Text Display
-                        content = $"# **{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
+                        content = $"# **{player.CharacterName}-{player.Realm}** | {player.Class} |  {player.ItemLevel}",
                     },
                     new
                     {
                         type = 10, // Text Display
-                        content = newPlayer.Bio != null
-                            ? $"{newPlayer.Bio}\n\n"
-                            : "No bio available\n\n",
+                        content = player.Bio != null ? $"{player.Bio}\n\n" : "No bio available\n\n",
                     },
                     new
                     {
                         type = 10, // Text Display
-                        content = $"### Languages: {newPlayer.Languages} | Specs: {newPlayer.SpecsPlaying}",
+                        content = $"### Languages: {player.Languages} | Specs: {player.SpecsPlaying}",
                     },
                     new
                     {
@@ -129,6 +133,14 @@ public class DiscordWebhookService(
                 content = GetCuttingEdgeSummary(raiderIoProfile),
             };
 
+            var guildHistory = new
+            {
+                type = 10, // Text Display
+                content = player.GuildHistory.Any()
+                    ? $"## Guild History:\n- {string.Join("\n- ", player.GuildHistory)}"
+                    : "No guild history available",
+            };
+
             var components = new List<object>
             {
                 personContainer,
@@ -154,6 +166,7 @@ public class DiscordWebhookService(
                     spacing = 2,
                 },
                 aotc,
+                guildHistory,
             };
 
             var payload = new

@@ -48,17 +48,18 @@ public class WowProgressService(
 
             // Find the table with player data
             // The table has rows with format: character info | guild | raid | realm | ilvl | date
-            var rows = doc.DocumentNode.SelectNodes("//table[@class='rating']//tr[position()>1]");
+            // var rows = doc.DocumentNode.SelectNodes("//table[@class='rating']//tr[position()>1]");
+            var rows = doc.DocumentNode.SelectNodes("//table//tr[position()>1]");
 
-            if (rows == null)
-            {
-                // Try alternative selector
-                rows = doc.DocumentNode.SelectNodes("//table//tr[position()>1]");
-                logger.LogWarning(
-                    "Rating table not found, trying generic table. Found {Count} rows",
-                    rows?.Count ?? 0
-                );
-            }
+            // if (rows == null)
+            // {
+            //     // Try alternative selector
+            //     rows = doc.DocumentNode.SelectNodes("//table//tr[position()>1]");
+            //     logger.LogWarning(
+            //         "Rating table not found, trying generic table. Found {Count} rows",
+            //         rows?.Count ?? 0
+            //     );
+            // }
 
             if (rows == null)
             {
@@ -261,6 +262,14 @@ public class WowProgressService(
                     "No registeredTo div found for {CharacterName}. Character may not have a profile.",
                     player.CharacterName
                 );
+            }
+
+            var events = doc.DocumentNode.SelectNodes("//ul[@class='eventList']//li");
+            foreach (var row in events)
+            {
+                var guildEvent = row?.InnerText.Trim();
+                if (!string.IsNullOrEmpty(guildEvent))
+                    player.GuildHistory = player.GuildHistory.Append(row?.InnerText.Trim() ?? "");
             }
         }
         catch (Exception ex)

@@ -11,6 +11,7 @@ public class AllStar
     public string Spec { get; set; }
 
     [JsonPropertyName("points")]
+    [JsonConverter(typeof(DoubleOrDashConverter))]
     public double Points { get; set; }
 
     [JsonPropertyName("possiblePoints")]
