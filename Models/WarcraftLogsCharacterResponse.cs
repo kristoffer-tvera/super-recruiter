@@ -112,6 +112,17 @@ public class Ranking
     [JsonPropertyName("fastestKill")]
     public int FastestKill { get; set; }
 
+    // Unmapped computed field that prints FastestKill (currently in MS) in a human readable format (e.g. 5m 30s)
+    [JsonIgnore]
+    public string FastestKillFormatted
+    {
+        get
+        {
+            TimeSpan time = TimeSpan.FromMilliseconds(FastestKill);
+            return $"{(int)time.TotalMinutes}m {time.Seconds}s";
+        }
+    }
+
     [JsonPropertyName("allStars")]
     public AllStar AllStars { get; set; }
 

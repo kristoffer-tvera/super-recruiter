@@ -45,7 +45,8 @@ public class Worker(
                         CharacterName = "Bsl",
                         Realm = "Stormscale",
                         Class = "Druid",
-                        ItemLevel = 480,
+                        ItemLevel = 160,
+                        Bio = "I am a test player",
                     },
                 };
 

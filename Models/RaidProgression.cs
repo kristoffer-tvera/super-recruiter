@@ -30,6 +30,6 @@ public class RaidTier
 public class RaidTierCurve
 {
     public string Raid { get; set; } = string.Empty;
-    public DateTime Aotc { get; set; }
-    public DateTime Cutting_edge { get; set; }
+    public DateTime? Aotc { get; set; }
+    public DateTime? Cutting_edge { get; set; }
 }

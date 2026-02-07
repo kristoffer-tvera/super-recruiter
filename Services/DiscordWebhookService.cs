@@ -68,90 +68,103 @@ public class DiscordWebhookService(
                 $"[WCL](https://www.warcraftlogs.com/character/eu/{newPlayer.RealmSlug}/{newPlayer.CharacterName})",
             };
 
-            var rankings = warcraftLogsData?.Data?.CharacterData.Character.ZoneRankings;
+            var warcraftLogsZoneRankings = warcraftLogsData
+                ?.Data
+                ?.CharacterData
+                .Character
+                .ZoneRankings;
 
-            var embeds = new List<object>
+            var personContainer = new
             {
-                new
+                type = 17, // ComponentType.CONTAINER
+                accent_color = 703487,
+                components = new[]
                 {
-                    title = $"**{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
-                    description = $"Bio here",
-                    // url = newPlayer.CharacterUrl,
-                    // Blue color
-                    footer = new { text = $"Last updated: {newPlayer.LastUpdated:g}" },
-                    thumbnail = new { url = thumbnail },
-                    fields = new[]
+                    new
                     {
-                        new
-                        {
-                            name = "Warcraftlogs - Allstars",
-                            value = rankings != null
-                                ? string.Join(
-                                    "\n",
-                                    rankings.AllStars.Select(r =>
-                                        $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})"
-                                    )
-                                )
-                                : "No WarcraftLogs data",
-                            inline = false,
-                        },
-                        new
-                        {
-                            name = "Warcraftlogs - All bosses (Current tier)",
-                            value = rankings != null
-                                ? string.Join(
-                                    "\n\n",
-                                    rankings.Rankings.Select(rank =>
-                                        $"{rank.Encounter.Name} ({rank.TotalKills}) \nBest: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}%"
-                                    )
-                                )
-                                : "No WarcraftLogs data",
-                            inline = false,
-                        },
-                        new
-                        {
-                            name = "Ahead of the Curve, Cutting Edge",
-                            value = raiderIoProfile?.Raid_achievement_curve != null
-                                ? string.Join(
-                                    "\n",
-                                    raiderIoProfile.Raid_achievement_curve.Select(tier =>
-                                        // $"{tier.Raid} \nHeroic: {tier.Aotc.ToString("dd.MM.yyyy") ?? "N/A"} | Mythic: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
-                                        $"{tier.Raid} | M: {tier.Cutting_edge.ToString("dd.MM.yyyy") ?? "N/A"}"
-                                    )
-                                )
-                                : "No raid data",
-                            inline = false,
-                        },
-                        new
-                        {
-                            name = "Current Expansion",
-                            value = raiderIoProfile?.Raid_progression_summary != null
-                                ? string.Join("\n", raiderIoProfile.Raid_progression_summary)
-                                : "No raid data",
-                            inline = false,
-                        },
-                        new
-                        {
-                            name = "External Sites",
-                            value = string.Join(" | ", links),
-                            inline = false,
-                        },
+                        type = 10, // Text Display
+                        content = $"# **{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
+                    },
+                    new
+                    {
+                        type = 10, // Text Display
+                        content = newPlayer.Bio != null ? $"{newPlayer.Bio}\n\n" : string.Empty,
+                    },
+                    new
+                    {
+                        type = 10, // Text Display
+                        content = $"## External Links:\n{string.Join(" | ", links)}",
                     },
                 },
             };
 
+            var currentExpansionProgression = new
+            {
+                type = 10, // Text Display
+                content = $"## Current Expansion Progression:\n- {(raiderIoProfile?.Raid_progression_summary != null ? string.Join("\n- ", raiderIoProfile.Raid_progression_summary) : "No raid data")}",
+            };
+
+            var wclAllstars = new
+            {
+                type = 10, // Text Display
+                content = $"## WarcraftLogs - Allstars:\n{(warcraftLogsZoneRankings != null ? string.Join("\n", warcraftLogsZoneRankings.AllStars.Select(r => $"__{r.Spec}__ | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})")) : "No WarcraftLogs data")}",
+            };
+
+            var wclBosses = new
+            {
+                type = 10, // Text Display
+                content = $"## WarcraftLogs - Bosses current tier:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.Rankings.Select(rank => $"__{rank.Encounter.Name}__ as {rank.Spec} | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}")) : "No WarcraftLogs data")}",
+            };
+
+            var aotc = new
+            {
+                type = 10, // Text Display
+                content = $"## Ahead of the Curve, Cutting Edge:\n- {(raiderIoProfile?.Raid_achievement_curve != null ? string.Join("\n- ", raiderIoProfile.Raid_achievement_curve.Select(tier => $"__{tier.Raid}__ | {(tier.Cutting_edge != null ? "Mythic | " + tier.Cutting_edge.Value.ToString("dd.MM.yyyy") : tier.Aotc != null ? "Heroic | " + tier.Aotc.Value.ToString("dd.MM.yyyy") : "Uncleared")}")) : "No RaiderIO data")}",
+            };
+
+            var components = new List<object>
+            {
+                personContainer,
+                new
+                {
+                    type = 14, // ComponentType.SEPARATOR
+                    divider = true,
+                    spacing = 2,
+                },
+                currentExpansionProgression,
+                new
+                {
+                    type = 14, // ComponentType.SEPARATOR
+                    divider = true,
+                    spacing = 2,
+                },
+                wclAllstars,
+                wclBosses,
+                new
+                {
+                    type = 14, // ComponentType.SEPARATOR
+                    divider = true,
+                    spacing = 2,
+                },
+                aotc,
+            };
+
             var payload = new
             {
-                content = $"**{newPlayer.CharacterName}-{newPlayer.Realm}** | {newPlayer.Class} |  {newPlayer.ItemLevel}",
                 tts = false,
                 avatar_url = thumbnail,
-                embeds,
+                flags = 32768,
+                components,
             };
 
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var response = await httpClient.PostAsync(_webhookUrl, content, cancellationToken);
+            var response = await httpClient.PostAsync(
+                _webhookUrl + "?with_components=true",
+                content,
+                cancellationToken
+            );
 
             if (!response.IsSuccessStatusCode)
             {
