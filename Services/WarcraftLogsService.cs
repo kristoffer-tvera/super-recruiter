@@ -15,6 +15,13 @@ public interface IWarcraftLogsService
     );
 }
 
+/// <summary>
+/// https://www.warcraftlogs.com/api/docs
+/// https://www.warcraftlogs.com/v2-api-docs/warcraft/character.doc.html
+/// </summary>
+/// <param name="logger"></param>
+/// <param name="httpClient"></param>
+/// <param name="configuration"></param>
 public class WarcraftLogsService(
     ILogger<WarcraftLogsService> logger,
     HttpClient httpClient,

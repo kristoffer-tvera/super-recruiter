@@ -58,10 +58,6 @@ public class WowProgressService(
                     "Rating table not found, trying generic table. Found {Count} rows",
                     rows?.Count ?? 0
                 );
-
-                // Save HTML to file for inspection
-                await File.WriteAllTextAsync("debug_output.html", html);
-                logger.LogInformation("Saved HTML to debug_output.html for inspection");
             }
 
             if (rows == null)

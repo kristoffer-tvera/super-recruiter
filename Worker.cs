@@ -77,22 +77,27 @@ public class Worker(
                             players.Count
                         );
 
-                        foreach (var newPlayer in newPlayers)
+                        foreach (var player in newPlayers)
                         {
                             var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
                                 "eu",
-                                newPlayer.RealmSlug,
-                                newPlayer.CharacterName,
+                                player.RealmSlug,
+                                player.CharacterName,
                                 stoppingToken
                             );
 
                             var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
-                                newPlayer,
+                                player,
+                                stoppingToken
+                            );
+
+                            var detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
+                                player,
                                 stoppingToken
                             );
 
                             await discordWebhookService.SendNewPlayerNotificationAsync(
-                                newPlayer,
+                                detailedPlayer,
                                 raiderIoData,
                                 warcraftLogsData,
                                 stoppingToken

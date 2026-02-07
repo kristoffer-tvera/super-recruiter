@@ -13,6 +13,12 @@ public interface IRaiderIOService
     );
 }
 
+/// <summary>
+/// https://raider.io/api#/character/getApiV1CharactersProfile
+/// </summary>
+/// <param name="logger"></param>
+/// <param name="httpClient"></param>
+/// <param name="configuration"></param>
 public class RaiderIOService(
     ILogger<RaiderIOService> logger,
     HttpClient httpClient,

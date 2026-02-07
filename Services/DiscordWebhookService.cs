@@ -95,6 +95,11 @@ public class DiscordWebhookService(
                     new
                     {
                         type = 10, // Text Display
+                        content = $"### Languages: {newPlayer.Languages} | Specs: {newPlayer.SpecsPlaying}",
+                    },
+                    new
+                    {
+                        type = 10, // Text Display
                         content = $"## External Links:\n{string.Join(" | ", links)}",
                     },
                 },
@@ -103,25 +108,25 @@ public class DiscordWebhookService(
             var currentExpansionProgression = new
             {
                 type = 10, // Text Display
-                content = $"## __Current Expansion Progression__:\n- {(raiderIoProfile?.Raid_progression_summary != null ? string.Join("\n- ", raiderIoProfile.Raid_progression_summary) : "No raid data")}",
+                content = GetCurrentExpansionProgressionSummary(raiderIoProfile),
             };
 
             var wclAllstars = new
             {
                 type = 10, // Text Display
-                content = $"## __WarcraftLogs - Allstars__:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.AllStars.Select(r => $"**{r.Spec}** | {r.RankPercent:F0}% | ({r.Points:F0} out of {r.PossiblePoints:F0})")) : "No WarcraftLogs data")}",
+                content = GetAllStarsSummary(warcraftLogsZoneRankings),
             };
 
             var wclBosses = new
             {
                 type = 10, // Text Display
-                content = $"## __WarcraftLogs - Bosses current tier__:\n- {(warcraftLogsZoneRankings != null ? string.Join("\n- ", warcraftLogsZoneRankings.Rankings.Select(rank => $"**{rank.Encounter.Name}** as {rank.Spec} | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}")) : "No WarcraftLogs data")}",
+                content = GetBossSummary(warcraftLogsZoneRankings),
             };
 
             var aotc = new
             {
                 type = 10, // Text Display
-                content = $"## __Ahead of the Curve, Cutting Edge__:\n- {(raiderIoProfile?.Raid_achievement_curve != null ? string.Join("\n- ", raiderIoProfile.Raid_achievement_curve.Select(tier => $"**{tier.Raid}** | {(tier.Cutting_edge != null ? "Mythic | " + tier.Cutting_edge.Value.ToString("dd.MM.yyyy") : tier.Aotc != null ? "Heroic | " + tier.Aotc.Value.ToString("dd.MM.yyyy") : "Uncleared")}")) : "No RaiderIO data")}",
+                content = GetCuttingEdgeSummary(raiderIoProfile),
             };
 
             var components = new List<object>
@@ -187,7 +192,7 @@ public class DiscordWebhookService(
         }
     }
 
-    private int ClassColorFromClassName(string className)
+    private static int ClassColorFromClassName(string className)
     {
         return className.ToLower() switch
         {
@@ -206,5 +211,69 @@ public class DiscordWebhookService(
             "warrior" => 0xC79C6E,
             _ => 0xFFFFFF, // Default to white if unknown
         };
+    }
+
+    private static object GetBossSummary(ZoneRankings? warcraftLogsZoneRankings)
+    {
+        var header = "## __WarcraftLogs - Boss Rankings__:\n- ";
+        var rankings =
+            warcraftLogsZoneRankings != null
+                ? string.Join(
+                    "\n- ",
+                    warcraftLogsZoneRankings
+                        .Rankings.Where(rank => rank.TotalKills > 0)
+                        .Select(rank =>
+                            $"**{rank.Encounter.Name}** ({rank.TotalKills}) | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}"
+                        )
+                )
+                : "\n- No WarcraftLogs data";
+        return header + rankings;
+    }
+
+    private static string GetAllStarsSummary(ZoneRankings? zoneRankings)
+    {
+        var header = "## __WarcraftLogs - Allstars__:";
+
+        if (zoneRankings == null || zoneRankings.AllStars == null)
+            return $"{header}\n- No WarcraftLogs data";
+
+        var best =
+            $"\n- **Best** Perf. Avg | {zoneRankings.BestPerformanceAverage:F0} **Median** Perf. Avg | {zoneRankings.MedianPerformanceAverage:F0}";
+
+        var allStars = zoneRankings
+            .AllStars.Select(a =>
+                $"**{a.Spec}** | {a.RankPercent:F0}% | ({a.Points:F0} out of {a.PossiblePoints:F0})"
+            )
+            .ToList();
+
+        return header + best + "\n- " + string.Join("\n- ", allStars);
+    }
+
+    private static string GetCurrentExpansionProgressionSummary(RaiderIOProfile? profile)
+    {
+        var header = "## __Current Expansion Progression__:";
+
+        if (profile?.Raid_progression_summary == null)
+            return $"{header}\n- No raid data";
+
+        var progression = string.Join("\n- ", profile.Raid_progression_summary);
+        return $"{header}\n- {progression}";
+    }
+
+    private static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
+    {
+        var header = "## __Ahead of the Curve, Cutting Edge__:";
+
+        if (profile?.Raid_achievement_curve == null)
+            return $"{header}\n- No RaiderIO data";
+
+        var curve = string.Join(
+            "\n- ",
+            profile.Raid_achievement_curve.Select(tier =>
+                $"**{tier.Raid}** | {(tier.Cutting_edge != null ? "Mythic | " + tier.Cutting_edge.Value.ToString("dd.MM.yyyy") : tier.Aotc != null ? "Heroic | " + tier.Aotc.Value.ToString("dd.MM.yyyy") : "Uncleared")}"
+            )
+        );
+
+        return $"{header}\n- {curve}";
     }
 }
