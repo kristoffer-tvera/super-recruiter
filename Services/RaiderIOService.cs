@@ -138,11 +138,11 @@ public class RaiderIOService(
         var summaries = new List<string>();
         foreach (var tier in profile.Raid_progression)
         {
+            if (string.IsNullOrEmpty(tier.Value.Summary))
+                continue; // skip empty progress
+
             var tierName = GetNameFromKebabCase(tier.Key);
-            // Tier progress can be empty, so handle that case
-            var tierProgress = string.IsNullOrEmpty(tier.Value.Summary)
-                ? "No progress"
-                : tier.Value.Summary;
+            var tierProgress = tier.Value.Summary;
 
             summaries.Add($"**{tierName}** | {tierProgress}");
         }

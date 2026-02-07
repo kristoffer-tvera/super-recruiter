@@ -226,7 +226,7 @@ public class DiscordWebhookService(
                             $"**{rank.Encounter.Name}** ({rank.TotalKills}) | Best: {rank.RankPercent:F0}% | Median: {rank.MedianPercent:F0}% | Fastest kill: {rank.FastestKillFormatted}"
                         )
                 )
-                : "\n- No WarcraftLogs data";
+                : "No WarcraftLogs data";
         return header + rankings;
     }
 
