@@ -3,20 +3,6 @@ using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
 
-public interface IRaiderIOService
-{
-    Task<RaiderIOProfile?> GetCharacterProfileAsync(
-        string region,
-        string realm,
-        string characterName,
-        CancellationToken cancellationToken = default
-    );
-
-    Task<List<Player>?> GetLookingForGuildPlayersAsync(
-        CancellationToken cancellationToken = default
-    );
-}
-
 /// <summary>
 /// https://raider.io/api#/character/getApiV1CharactersProfile
 /// </summary>
@@ -27,7 +13,7 @@ public class RaiderIOService(
     ILogger<RaiderIOService> logger,
     HttpClient httpClient,
     IConfiguration configuration
-) : IRaiderIOService
+)
 {
     private const string BaseUrl = "https://raider.io/api";
 

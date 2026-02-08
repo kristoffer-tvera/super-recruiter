@@ -5,22 +5,11 @@ using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
 
-public interface IWowProgressService
-{
-    Task<List<Player>> GetLookingForGuildPlayersAsync(
-        CancellationToken cancellationToken = default
-    );
-    Task<Player> GetPlayerDetailsAsync(
-        Player player,
-        CancellationToken cancellationToken = default
-    );
-}
-
 public class WowProgressService(
     ILogger<WowProgressService> logger,
     HttpClient httpClient,
     IConfiguration configuration
-) : IWowProgressService
+)
 {
     private const string BaseUrl = "https://www.wowprogress.com";
     private const string LfgUrl = "/gearscore/eu?lfg=1&sortby=ts";

@@ -3,21 +3,6 @@ using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
 
-public interface IDiscordWebhookService
-{
-    Task SendNewPlayersNotificationAsync(
-        List<Player> players,
-        CancellationToken cancellationToken = default
-    );
-
-    Task SendNewPlayerNotificationAsync(
-        Player player,
-        RaiderIOProfile? raiderIoProfile = null,
-        WarcraftLogsCharacterResponse? warcraftLogsData = null,
-        CancellationToken cancellationToken = default
-    );
-}
-
 /// <summary>
 /// https://discord.com/developers/docs/components/reference
 /// </summary>
@@ -28,7 +13,7 @@ public class DiscordWebhookService(
     HttpClient httpClient,
     ILogger<DiscordWebhookService> logger,
     IConfiguration configuration
-) : IDiscordWebhookService
+)
 {
     private readonly string? _webhookUrl = configuration["Discord:WebhookUrl"];
 

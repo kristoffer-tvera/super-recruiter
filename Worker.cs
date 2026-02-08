@@ -5,11 +5,11 @@ namespace SuperRecruiter;
 
 public class Worker(
     ILogger<Worker> logger,
-    IWowProgressService wowProgressService,
-    IDiscordWebhookService discordWebhookService,
-    IRaiderIOService raiderIOService,
-    IWarcraftLogsService warcraftLogsService,
-    IPlayerDatabaseService playerDatabaseService,
+    WowProgressService wowProgressService,
+    DiscordWebhookService discordWebhookService,
+    RaiderIOService raiderIOService,
+    WarcraftLogsService warcraftLogsService,
+    PlayerDatabaseService playerDatabaseService,
     IConfiguration configuration
 ) : BackgroundService
 {
@@ -39,113 +39,37 @@ public class Worker(
 
                 players = players.Take(3).ToList(); // while debugging
 
-                if (players.Count > 0)
+                if (players.Count == 0)
                 {
-                    // Identify new players or players who have re-listed (updated their listing)
-                    var newPlayers = new List<Player>();
+                    logger.LogInformation("No players found in the scan");
+                    continue;
+                }
+                var newPlayers = await FilterPlayersAsync(players, stoppingToken);
+                if (newPlayers?.Count > 0)
+                {
+                    logger.LogInformation(
+                        "Found {NewCount} new player(s) out of {TotalCount} total",
+                        newPlayers.Count,
+                        players.Count
+                    );
 
-                    foreach (var player in players)
+                    foreach (var player in newPlayers)
                     {
-                        // Check if player is blacklisted
-                        var isBlacklisted = await playerDatabaseService.IsPlayerBlacklistedAsync(
-                            player.CharacterName,
-                            player.Realm
-                        );
-
-                        if (isBlacklisted)
-                        {
-                            logger.LogDebug(
-                                "Skipping blacklisted player: {Character}-{Realm}",
-                                player.CharacterName,
-                                player.Realm
-                            );
-                            continue;
-                        }
-
-                        // Check if we've seen this player before and when
-                        var lastSeenAt = await playerDatabaseService.GetLastSeenAtAsync(
-                            player.CharacterName,
-                            player.Realm
-                        );
-
-                        // Process player if:
-                        // 1. We've never seen them (lastSeenAt == null), OR
-                        // 2. Their LastUpdated is newer than when we last saw them (they re-listed)
-                        if (lastSeenAt == null || player.LastUpdated > lastSeenAt.Value)
-                        {
-                            if (lastSeenAt != null)
-                            {
-                                logger.LogInformation(
-                                    "Player {Character}-{Realm} re-listed (LastUpdated: {Updated}, LastSeen: {Seen})",
-                                    player.CharacterName,
-                                    player.Realm,
-                                    player.LastUpdated,
-                                    lastSeenAt.Value
-                                );
-                            }
-
-                            await playerDatabaseService.AddSeenPlayerAsync(
-                                player.CharacterName,
-                                player.Realm,
-                                player.LastUpdated
-                            );
-                            newPlayers.Add(player);
-                        }
+                        await ProcessPlayerAsync(player, stoppingToken);
+                        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); // small delay between notifications
                     }
-
-                    if (newPlayers.Count > 0)
-                    {
-                        logger.LogInformation(
-                            "Found {NewCount} new player(s) out of {TotalCount} total",
-                            newPlayers.Count,
-                            players.Count
-                        );
-
-                        foreach (var player in newPlayers)
-                        {
-                            var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
-                                "eu",
-                                player.RealmSlug,
-                                player.CharacterName,
-                                stoppingToken
-                            );
-
-                            var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
-                                player,
-                                stoppingToken
-                            );
-
-                            var detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
-                                player,
-                                stoppingToken
-                            );
-
-                            await discordWebhookService.SendNewPlayerNotificationAsync(
-                                detailedPlayer,
-                                raiderIoData,
-                                warcraftLogsData,
-                                stoppingToken
-                            );
-
-                            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); // small delay between notifications
-                        }
-                    }
-                    else
-                    {
-                        var totalCount = await playerDatabaseService.GetSeenPlayersCountAsync();
-                        logger.LogInformation(
-                            "No new players found. Total players tracked: {Count}",
-                            totalCount
-                        );
-                    }
-
-                    // Periodic cleanup of old entries (keep last 30 days)
-                    await playerDatabaseService.CleanupOldSeenPlayersAsync(30);
                 }
                 else
                 {
-                    logger.LogWarning("No players found in the scan");
+                    var totalCount = await playerDatabaseService.GetSeenPlayersCountAsync();
+                    logger.LogInformation(
+                        "No new players found. Total players tracked: {Count}",
+                        totalCount
+                    );
                 }
+
+                // Periodic cleanup of old entries (keep last 30 days)
+                await playerDatabaseService.CleanupOldSeenPlayersAsync(30);
             }
             catch (Exception ex)
             {
@@ -157,5 +81,92 @@ public class Worker(
         }
 
         logger.LogInformation("Super Recruiter worker stopping");
+    }
+
+    public async Task<List<Player>?> FilterPlayersAsync(
+        List<Player> players,
+        CancellationToken cancellationToken
+    )
+    {
+        // Identify new players or players who have re-listed (updated their listing)
+        var filteredPlayers = new List<Player>();
+
+        foreach (var player in players)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Check if player is blacklisted
+            var isBlacklisted = await playerDatabaseService.IsPlayerBlacklistedAsync(
+                player.CharacterName,
+                player.Realm
+            );
+
+            if (isBlacklisted)
+            {
+                logger.LogDebug(
+                    "Skipping blacklisted player: {Character}-{Realm}",
+                    player.CharacterName,
+                    player.Realm
+                );
+                continue;
+            }
+
+            // Check if we've seen this player before and when
+            var lastSeenAt = await playerDatabaseService.GetLastSeenAtAsync(
+                player.CharacterName,
+                player.Realm
+            );
+
+            // Process player if:
+            // 1. We've never seen them (lastSeenAt == null), OR
+            // 2. Their LastUpdated is newer than when we last saw them (they re-listed)
+            if (lastSeenAt == null || player.LastUpdated > lastSeenAt.Value)
+            {
+                if (lastSeenAt != null)
+                {
+                    logger.LogInformation(
+                        "Player {Character}-{Realm} re-listed (LastUpdated: {Updated}, LastSeen: {Seen})",
+                        player.CharacterName,
+                        player.Realm,
+                        player.LastUpdated,
+                        lastSeenAt.Value
+                    );
+                }
+
+                await playerDatabaseService.AddSeenPlayerAsync(
+                    player.CharacterName,
+                    player.Realm,
+                    player.LastUpdated
+                );
+                filteredPlayers.Add(player);
+            }
+        }
+        return filteredPlayers;
+    }
+
+    public async Task ProcessPlayerAsync(Player player, CancellationToken cancellationToken)
+    {
+        var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
+            "eu",
+            player.RealmSlug,
+            player.CharacterName,
+            cancellationToken
+        );
+
+        var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
+            player,
+            cancellationToken
+        );
+
+        var detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
+            player,
+            cancellationToken
+        );
+
+        await discordWebhookService.SendNewPlayerNotificationAsync(
+            detailedPlayer,
+            raiderIoData,
+            warcraftLogsData,
+            cancellationToken
+        );
     }
 }

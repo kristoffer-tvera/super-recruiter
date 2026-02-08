@@ -7,14 +7,6 @@ using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
 
-public interface IWarcraftLogsService
-{
-    Task<WarcraftLogsCharacterResponse?> GetCharacterDataAsync(
-        Player player,
-        CancellationToken cancellationToken = default
-    );
-}
-
 /// <summary>
 /// https://www.warcraftlogs.com/api/docs
 /// https://www.warcraftlogs.com/v2-api-docs/warcraft/character.doc.html
@@ -26,7 +18,7 @@ public class WarcraftLogsService(
     ILogger<WarcraftLogsService> logger,
     HttpClient httpClient,
     IConfiguration configuration
-) : IWarcraftLogsService
+)
 {
     private string? _accessToken;
     private DateTime _tokenExpiresAt = DateTime.MinValue;

@@ -5,7 +5,7 @@ using SuperRecruiter.Models;
 
 namespace SuperRecruiter.Services;
 
-public class PlayerDatabaseService : IPlayerDatabaseService
+public class PlayerDatabaseService
 {
     private readonly string _connectionString;
     private readonly ILogger<PlayerDatabaseService> _logger;
