@@ -166,6 +166,12 @@ public class DiscordWebhookService(
                     spacing = 2,
                 },
                 aotc,
+                new
+                {
+                    type = 14, // ComponentType.SEPARATOR
+                    divider = true,
+                    spacing = 2,
+                },
                 guildHistory,
             };
 
@@ -275,7 +281,7 @@ public class DiscordWebhookService(
 
     private static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
     {
-        var header = "## __Ahead of the Curve, Cutting Edge__:";
+        var header = "## __Ahead of the Curve / Cutting Edge__:";
 
         if (profile?.Raid_achievement_curve == null)
             return $"{header}\n- No RaiderIO data";

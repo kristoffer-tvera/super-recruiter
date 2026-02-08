@@ -11,6 +11,10 @@ public interface IRaiderIOService
         string characterName,
         CancellationToken cancellationToken = default
     );
+
+    Task<List<Player>?> GetLookingForGuildPlayersAsync(
+        CancellationToken cancellationToken = default
+    );
 }
 
 /// <summary>
@@ -25,7 +29,7 @@ public class RaiderIOService(
     IConfiguration configuration
 ) : IRaiderIOService
 {
-    private const string BaseUrl = "https://raider.io/api/v1/characters/profile";
+    private const string BaseUrl = "https://raider.io/api";
 
     public async Task<RaiderIOProfile?> GetCharacterProfileAsync(
         string region,
@@ -69,7 +73,7 @@ public class RaiderIOService(
             };
 
             var url =
-                $"{BaseUrl}?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
+                $"{BaseUrl}/v1/characters/profile?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
 
             logger.LogDebug(
                 "Fetching RaiderIO profile for {Character} on {Realm} ({Region})",
@@ -125,6 +129,92 @@ public class RaiderIOService(
                 characterName,
                 realm
             );
+            return null;
+        }
+    }
+
+    public async Task<List<Player>?> GetLookingForGuildPlayersAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var apiKey = configuration["RaiderIO:ApiKey"];
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                logger.LogWarning("RaiderIO API key not configured");
+                return null;
+            }
+
+            var queryStringParameters = new Dictionary<string, string>
+            {
+                { "type", "character" },
+                { "recruitment.guild_raids.schedule[0][eq][day]", 4.ToString() }, // Thursday
+                { "recruitment.guild_raids.schedule[0][eq][startTime]", "1200" }, // 20:00
+                { "recruitment.guild_raids.schedule[0][eq][endTime]", "1410" }, // 23:30
+                { "recruitment.guild_raids.schedule[0][eq][relation]", "intersects" },
+                { "recruitment.guild_raids.schedule[1][eq][day]", 6.ToString() }, // Saturday
+                { "recruitment.guild_raids.schedule[1][eq][startTime]", "1200" }, // 20:00
+                { "recruitment.guild_raids.schedule[1][eq][endTime]", "1410" }, // 23:30
+                { "recruitment.guild_raids.schedule[1][eq][relation]", "intersects" },
+                { "recruitment.guild_raids.schedule[2][eq][day]", 1.ToString() }, // Monday
+                { "recruitment.guild_raids.schedule[2][eq][startTime]", "1200" }, // 20:00
+                { "recruitment.guild_raids.schedule[2][eq][endTime]", "1410" }, // 23:30
+                { "recruitment.guild_raids.schedule[2][eq][relation]", "intersects" },
+                { "region[0][eq]", "eu" },
+                { "timezone", "UTC" },
+                { "sort[recruitment.guild_raids.profile.published_at]", "desc" },
+                { "limit", "3" },
+                { "offset", "0" },
+            };
+
+            var url =
+                $"{BaseUrl}/search-advanced?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
+
+            logger.LogDebug("Fetching RaiderIO recruitment feed with URL: {Url}", url);
+
+            var response = await httpClient.GetAsync(url, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning(
+                    "Failed to fetch RaiderIO recruitment feed. Status: {Status}",
+                    response.StatusCode
+                );
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            var feed = JsonSerializer.Deserialize<RaiderIoRecruitmentFeed>(json, options);
+            var players = new List<Player>();
+
+            foreach (var match in feed?.Matches ?? [])
+            {
+                var player = new Player
+                {
+                    CharacterName = match.Name ?? "Unknown",
+                    Realm = match?.Data?.Realm?.Name ?? "Unknown",
+
+                    Class = match?.Data?.Class?.Name ?? "Unknown",
+                    ItemLevel = match?.Data?.ItemLevelEquipped ?? 0.0,
+                    LastUpdated =
+                        match?.Data?.Recruitment?.GuildRaids?.Profile?.PublishedAt
+                        ?? DateTime.MinValue,
+                    CharacterUrl =
+                        $"https://www.wowprogress.com/character/eu/{match?.Data?.Realm?.Slug ?? "unknown"}/{match?.Name}",
+                    Bio =
+                        "Limited info available from RaiderIO feed. Check their profile for more details.",
+                };
+            }
+
+            return players;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error fetching RaiderIO recruitment feed");
             return null;
         }
     }
