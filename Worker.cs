@@ -37,7 +37,7 @@ public class Worker(
                     stoppingToken
                 );
 
-                players = players.Take(3).ToList(); // while debugging
+                players = [.. players.Take(10)]; // while debugging
 
                 if (players.Count == 0)
                 {
@@ -151,6 +151,45 @@ public class Worker(
             player.CharacterName,
             cancellationToken
         );
+
+        if (raiderIoData != null)
+        {
+            var cuttingEdgeScores = raiderIoData.Raid_achievement_curve;
+            var manaForge = cuttingEdgeScores?.FirstOrDefault(a => a.Raid == "Manaforge Omega");
+            var liberationOfUndermine = cuttingEdgeScores?.FirstOrDefault(a =>
+                a.Raid == "Liberation Of Undermine"
+            );
+
+            if (manaForge == null && liberationOfUndermine == null)
+            {
+                logger.LogWarning(
+                    "Manaforge Omega or Liberation of Undermine data not found for player {Character}-{Realm}",
+                    player.CharacterName,
+                    player.Realm
+                );
+                await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
+                    player,
+                    "Manaforge Omega or Liberation of Undermine data not found",
+                    cancellationToken
+                );
+                return;
+            }
+
+            if (manaForge?.Cutting_edge == null && liberationOfUndermine?.Cutting_edge == null)
+            {
+                logger.LogInformation(
+                    "Player {Character}-{Realm} does not have Manaforge Omega Cutting Edge or Liberation of Undermine Cutting Edge. Skipping.",
+                    player.CharacterName,
+                    player.Realm
+                );
+                await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
+                    player,
+                    "Does not have Manaforge Omega or Liberation of Undermine Cutting Edge",
+                    cancellationToken
+                );
+                return;
+            }
+        }
 
         var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
             player,
