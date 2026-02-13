@@ -39,6 +39,46 @@ public class DiscordWebhookService(
         }
     }
 
+    public async Task SendPlayerWasFilteredOutNotificationAsync(
+        Player player,
+        string reason,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (string.IsNullOrWhiteSpace(_webhookUrl))
+        {
+            logger.LogWarning("Discord webhook URL not configured");
+            return;
+        }
+
+        var payload = new
+        {
+            content = $"Player **{player.CharacterName}-{player.Realm}** was filtered out: {reason}",
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await httpClient.PostAsync(_webhookUrl, content, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogError(
+                "Discord webhook request failed with status {StatusCode}: {ResponseContent}",
+                response.StatusCode,
+                responseContent
+            );
+            response.EnsureSuccessStatusCode();
+        }
+
+        logger.LogInformation(
+            "Sent Discord notification for filtered out player: {Player} - Reason: {Reason}",
+            player,
+            reason
+        );
+    }
+
     public async Task SendNewPlayerNotificationAsync(
         Player player,
         RaiderIOProfile? raiderIoProfile = null,
