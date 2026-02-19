@@ -17,28 +17,6 @@ public class DiscordWebhookService(
 {
     private readonly string? _webhookUrl = configuration["Discord:WebhookUrl"];
 
-    public async Task SendNewPlayersNotificationAsync(
-        List<Player> players,
-        CancellationToken cancellationToken = default
-    )
-    {
-        if (players.Count == 0)
-        {
-            logger.LogDebug("No new players to notify about");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_webhookUrl))
-        {
-            logger.LogWarning("Discord webhook URL not configured");
-            return;
-        }
-        foreach (var p in players)
-        {
-            await SendNewPlayerNotificationAsync(p, null, null, cancellationToken);
-        }
-    }
-
     public async Task SendPlayerWasFilteredOutNotificationAsync(
         Player player,
         string reason,
@@ -83,6 +61,7 @@ public class DiscordWebhookService(
         Player player,
         RaiderIOProfile? raiderIoProfile = null,
         WarcraftLogsCharacterResponse? warcraftLogsData = null,
+        string geminiTake = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -119,7 +98,9 @@ public class DiscordWebhookService(
                     new
                     {
                         type = 10, // Text Display
-                        content = player.Bio != null ? $"{player.Bio}\n\n" : "No bio available\n\n",
+                        content = player.Bio != null
+                            ? $"{player.Bio[..Math.Min(player.Bio.Length, 3700)]}\n\n"
+                            : "No bio available\n\n",
                     },
                     new
                     {
@@ -200,6 +181,25 @@ public class DiscordWebhookService(
                 guildHistory,
             };
 
+            if (!string.IsNullOrEmpty(geminiTake))
+            {
+                components.Add(
+                    new
+                    {
+                        type = 14, // ComponentType.SEPARATOR
+                        divider = true,
+                        spacing = 2,
+                    }
+                );
+                components.Add(
+                    new
+                    {
+                        type = 10, // Text Display
+                        content = geminiTake,
+                    }
+                );
+            }
+
             var payload = new
             {
                 tts = false,
@@ -257,7 +257,7 @@ public class DiscordWebhookService(
         };
     }
 
-    private static object GetBossSummary(ZoneRankings? warcraftLogsZoneRankings)
+    public static string GetBossSummary(ZoneRankings? warcraftLogsZoneRankings)
     {
         var header = "## __WarcraftLogs - Boss Rankings__:\n- ";
         var rankings =
@@ -274,7 +274,7 @@ public class DiscordWebhookService(
         return header + rankings;
     }
 
-    private static string GetAllStarsSummary(ZoneRankings? zoneRankings)
+    public static string GetAllStarsSummary(ZoneRankings? zoneRankings)
     {
         var header = "## __WarcraftLogs - Allstars__:";
 
@@ -293,7 +293,7 @@ public class DiscordWebhookService(
         return header + best + "\n- " + string.Join("\n- ", allStars);
     }
 
-    private static string GetCurrentExpansionProgressionSummary(RaiderIOProfile? profile)
+    public static string GetCurrentExpansionProgressionSummary(RaiderIOProfile? profile)
     {
         var header = "## __Current Expansion Progression__:";
 
@@ -304,7 +304,7 @@ public class DiscordWebhookService(
         return $"{header}\n- {progression}";
     }
 
-    private static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
+    public static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
     {
         var header = "## __Ahead of the Curve / Cutting Edge__:";
 

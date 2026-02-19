@@ -10,6 +10,7 @@ public class Worker(
     RaiderIOService raiderIOService,
     WarcraftLogsService warcraftLogsService,
     PlayerDatabaseService playerDatabaseService,
+    GeminiService geminiService,
     IConfiguration configuration
 ) : BackgroundService
 {
@@ -167,11 +168,11 @@ public class Worker(
                     player.CharacterName,
                     player.Realm
                 );
-                await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
-                    player,
-                    "Manaforge Omega or Liberation of Undermine data not found",
-                    cancellationToken
-                );
+                // await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
+                //     player,
+                //     "Manaforge Omega or Liberation of Undermine data not found",
+                //     cancellationToken
+                // );
                 return;
             }
 
@@ -182,11 +183,11 @@ public class Worker(
                     player.CharacterName,
                     player.Realm
                 );
-                await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
-                    player,
-                    "Does not have Manaforge Omega or Liberation of Undermine Cutting Edge",
-                    cancellationToken
-                );
+                // await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
+                //     player,
+                //     "Does not have Manaforge Omega or Liberation of Undermine Cutting Edge",
+                //     cancellationToken
+                // );
                 return;
             }
         }
@@ -201,11 +202,69 @@ public class Worker(
             cancellationToken
         );
 
+        if (!string.IsNullOrWhiteSpace(player.Languages))
+        {
+            if (!player.Languages.ToLower().Contains("eng"))
+            {
+                logger.LogInformation(
+                    "Player {Character}-{Realm} does not speak English. Skipping.",
+                    player.CharacterName,
+                    player.Realm
+                );
+                // await discordWebhookService.SendPlayerWasFilteredOutNotificationAsync(
+                //     player,
+                //     "Does not speak English",
+                //     cancellationToken
+                // );
+                return;
+            }
+        }
+
+        var geminiTake = await geminiService.GetGeminiTake(
+            GetGenerativeAiDescription(detailedPlayer, raiderIoData, warcraftLogsData)
+        );
+
         await discordWebhookService.SendNewPlayerNotificationAsync(
             detailedPlayer,
             raiderIoData,
             warcraftLogsData,
+            geminiTake,
             cancellationToken
         );
+    }
+
+    private string GetGenerativeAiDescription(
+        Player player,
+        RaiderIOProfile? raiderIoData,
+        WarcraftLogsCharacterResponse? warcraftLogsData
+    )
+    {
+        var textBlocks = new List<string>
+        {
+            $"Character: {player.CharacterName}",
+            $"Realm: {player.Realm}",
+            $"Bio: {player.Bio}",
+            $"Language: {player.Languages}",
+            $"Specs: {player.SpecsPlaying}",
+        };
+
+        var warcraftLogsZoneRankings = warcraftLogsData?.Data?.CharacterData.Character.ZoneRankings;
+        var currentExpansionProgression =
+            DiscordWebhookService.GetCurrentExpansionProgressionSummary(raiderIoData);
+        var cuttingEdgeProgression = DiscordWebhookService.GetCuttingEdgeSummary(raiderIoData);
+        var bossRankings = DiscordWebhookService.GetBossSummary(warcraftLogsZoneRankings);
+        var allStars = DiscordWebhookService.GetAllStarsSummary(warcraftLogsZoneRankings);
+        var guildHistory = player.GuildHistory.Any()
+            ? $"## Guild History:\n- {string.Join("\n- ", player.GuildHistory)}"
+            : "No guild history available";
+
+        textBlocks.Add(currentExpansionProgression);
+        textBlocks.Add(cuttingEdgeProgression);
+        textBlocks.Add(bossRankings);
+        textBlocks.Add(allStars);
+        textBlocks.Add(guildHistory);
+
+        var generativeAiDescription = string.Join("\n\n", textBlocks);
+        return generativeAiDescription;
     }
 }

@@ -4,6 +4,7 @@ using SuperRecruiter.Services;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Register services
+builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WowProgressService>();
 builder.Services.AddHttpClient<DiscordWebhookService>();
 builder.Services.AddHttpClient<RaiderIOService>();
