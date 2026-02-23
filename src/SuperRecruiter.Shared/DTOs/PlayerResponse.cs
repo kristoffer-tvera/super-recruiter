@@ -17,8 +17,8 @@ public class PlayerResponse
     public string? Languages { get; set; }
     public string? SpecsPlaying { get; set; }
     public string[] GuildHistory { get; set; } = [];
-    public string? RaiderIoDataJson { get; set; }
-    public string? WarcraftLogsDataJson { get; set; }
+    public string? RaiderIoSummary { get; set; }
+    public string? WarcraftLogsSummary { get; set; }
     public string? GeminiTake { get; set; }
     public PlayerStatus Status { get; set; }
     public ulong? DiscordMessageId { get; set; }

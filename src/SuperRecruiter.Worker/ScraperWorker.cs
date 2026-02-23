@@ -1,4 +1,3 @@
-using System.Text.Json;
 using SuperRecruiter.Shared.DTOs;
 using SuperRecruiter.Shared.Helpers;
 using SuperRecruiter.Shared.Models;
@@ -11,7 +10,6 @@ public class ScraperWorker(
     WowProgressService wowProgressService,
     RaiderIOService raiderIOService,
     WarcraftLogsService warcraftLogsService,
-    GeminiService geminiService,
     SuperRecruiterApiClient apiClient,
     DiscordBotService discordBotService,
     IConfiguration configuration
@@ -27,8 +25,17 @@ public class ScraperWorker(
             pollingIntervalMinutes
         );
 
-        // Initial delay to let services initialize (especially Discord bot)
-        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+        // Wait for Discord bot to be fully ready before starting the scan loop
+        logger.LogInformation("Waiting for Discord bot to be ready...");
+        var botReady = await discordBotService.WaitUntilReadyAsync(TimeSpan.FromSeconds(30));
+        if (!botReady)
+        {
+            logger.LogWarning("Discord bot did not become ready within 30s — continuing anyway");
+        }
+        else
+        {
+            logger.LogInformation("Discord bot is ready");
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -143,35 +150,6 @@ public class ScraperWorker(
             cancellationToken
         );
 
-        // if (raiderIoData != null)
-        // {
-        //     var cuttingEdgeScores = raiderIoData.Raid_achievement_curve;
-        //     var manaForge = cuttingEdgeScores?.FirstOrDefault(a => a.Raid == "Manaforge Omega");
-        //     var liberationOfUndermine = cuttingEdgeScores?.FirstOrDefault(a =>
-        //         a.Raid == "Liberation Of Undermine"
-        //     );
-
-        //     if (manaForge == null && liberationOfUndermine == null)
-        //     {
-        //         logger.LogWarning(
-        //             "Manaforge Omega or Liberation of Undermine data not found for {Character}-{Realm}",
-        //             player.CharacterName,
-        //             player.Realm
-        //         );
-        //         return;
-        //     }
-
-        //     if (manaForge?.Cutting_edge == null && liberationOfUndermine?.Cutting_edge == null)
-        //     {
-        //         logger.LogInformation(
-        //             "Player {Character}-{Realm} does not have CE. Skipping.",
-        //             player.CharacterName,
-        //             player.Realm
-        //         );
-        //         return;
-        //     }
-        // }
-
         // 2. Enrich from WarcraftLogs
         var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
             player,
@@ -198,11 +176,28 @@ public class ScraperWorker(
             }
         }
 
-        // 5. Get Gemini AI evaluation
-        // var geminiTake = await geminiService.GetGeminiTake(
-        //     GetGenerativeAiDescription(detailedPlayer, raiderIoData, warcraftLogsData)
-        // );
-        var geminiTake = "Gemini take placeholder";
+        // 5. Build markdown summaries from enrichment data
+        var warcraftLogsZoneRankings = warcraftLogsData
+            ?.Data
+            ?.CharacterData
+            ?.Character
+            ?.ZoneRankings;
+
+        var raiderIoSummaryParts = new List<string>();
+        raiderIoSummaryParts.Add(
+            PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoData)
+        );
+        raiderIoSummaryParts.Add(PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData));
+        var raiderIoSummary = string.Join("\n\n", raiderIoSummaryParts);
+
+        var wclSummaryParts = new List<string>();
+        if (warcraftLogsZoneRankings != null)
+        {
+            wclSummaryParts.Add(PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings));
+            wclSummaryParts.Add(PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings));
+        }
+        var warcraftLogsSummary =
+            wclSummaryParts.Count > 0 ? string.Join("\n\n", wclSummaryParts) : null;
 
         // 6. POST enriched player to API
         var createRequest = new CreatePlayerRequest
@@ -219,10 +214,8 @@ public class ScraperWorker(
             Languages = detailedPlayer.Languages,
             SpecsPlaying = detailedPlayer.SpecsPlaying,
             GuildHistory = detailedPlayer.GuildHistory.ToList(),
-            RaiderIoDataJson = raiderIoData != null ? JsonSerializer.Serialize(raiderIoData) : null,
-            WarcraftLogsDataJson =
-                warcraftLogsData != null ? JsonSerializer.Serialize(warcraftLogsData) : null,
-            GeminiTake = geminiTake,
+            RaiderIoSummary = raiderIoSummary,
+            WarcraftLogsSummary = warcraftLogsSummary,
         };
 
         var apiPlayer = await apiClient.CreatePlayerAsync(createRequest);
@@ -231,8 +224,6 @@ public class ScraperWorker(
         var messageId = await discordBotService.SendPlayerMessageAsync(
             detailedPlayer,
             raiderIoData,
-            warcraftLogsData,
-            geminiTake,
             apiPlayer.Id
         );
 
@@ -249,40 +240,5 @@ public class ScraperWorker(
             detailedPlayer.CharacterName,
             detailedPlayer.Realm
         );
-    }
-
-    private string GetGenerativeAiDescription(
-        Player player,
-        RaiderIOProfile? raiderIoData,
-        WarcraftLogsCharacterResponse? warcraftLogsData
-    )
-    {
-        var textBlocks = new List<string>
-        {
-            $"Character: {player.CharacterName}",
-            $"Realm: {player.Realm}",
-            $"Bio: {player.Bio}",
-            $"Language: {player.Languages}",
-            $"Specs: {player.SpecsPlaying}",
-        };
-
-        var warcraftLogsZoneRankings = warcraftLogsData?.Data?.CharacterData.Character.ZoneRankings;
-        var currentExpansionProgression = PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(
-            raiderIoData
-        );
-        var cuttingEdgeProgression = PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData);
-        var bossRankings = PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings);
-        var allStars = PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings);
-        var guildHistory = player.GuildHistory.Any()
-            ? $"## Guild History:\n- {string.Join("\n- ", player.GuildHistory)}"
-            : "No guild history available";
-
-        textBlocks.Add(currentExpansionProgression);
-        textBlocks.Add(cuttingEdgeProgression);
-        textBlocks.Add(bossRankings);
-        textBlocks.Add(allStars);
-        textBlocks.Add(guildHistory);
-
-        return string.Join("\n\n", textBlocks);
     }
 }

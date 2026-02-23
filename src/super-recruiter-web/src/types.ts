@@ -20,8 +20,8 @@ export interface PlayerResponse {
   languages?: string;
   specsPlaying?: string;
   guildHistory: string[];
-  raiderIoDataJson?: string;
-  warcraftLogsDataJson?: string;
+  raiderIoSummary?: string;
+  warcraftLogsSummary?: string;
   geminiTake?: string;
   status: PlayerStatus;
   discordMessageId?: number;

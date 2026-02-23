@@ -9,30 +9,33 @@ function App() {
   const [page, setPage] = useState<Page>("dashboard");
 
   return (
-    <div>
-      <nav
-        style={{
-          display: "flex",
-          gap: "1rem",
-          padding: "0.75rem 1rem",
-          borderBottom: "1px solid #333",
-          background: "#0a0a0a",
-        }}
-      >
-        <button
-          onClick={() => setPage("dashboard")}
-          style={{ fontWeight: page === "dashboard" ? "bold" : "normal" }}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => setPage("blacklist")}
-          style={{ fontWeight: page === "blacklist" ? "bold" : "normal" }}
-        >
-          Blacklist
-        </button>
+    <div data-bs-theme="dark">
+      <nav className="navbar navbar-expand navbar-dark bg-dark border-bottom border-secondary">
+        <div className="container-fluid">
+          <span className="navbar-brand mb-0 h1">Super Recruiter</span>
+          <ul className="navbar-nav">
+            <li className="nav-item">
+              <button
+                className={`nav-link btn btn-link ${page === "dashboard" ? "active" : ""}`}
+                onClick={() => setPage("dashboard")}
+              >
+                Dashboard
+              </button>
+            </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link btn btn-link ${page === "blacklist" ? "active" : ""}`}
+                onClick={() => setPage("blacklist")}
+              >
+                Blacklist
+              </button>
+            </li>
+          </ul>
+        </div>
       </nav>
-      {page === "dashboard" ? <Dashboard /> : <Blacklist />}
+      <div className="container-fluid mt-3">
+        {page === "dashboard" ? <Dashboard /> : <Blacklist />}
+      </div>
     </div>
   );
 }

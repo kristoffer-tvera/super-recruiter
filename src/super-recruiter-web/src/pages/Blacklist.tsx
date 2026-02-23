@@ -24,6 +24,10 @@ export default function Blacklist() {
       .then(() => fetchBlacklist())
       .then(setEntries)
       .catch(console.error);
+
+    setName("");
+    setRealm("");
+    setReason("");
   };
 
   const handleRemove = async (id: number) => {
@@ -36,78 +40,87 @@ export default function Blacklist() {
   };
 
   return (
-    <div style={{ padding: "1rem" }}>
-      <h1>Blacklist</h1>
+    <>
+      <h4 className="mb-3">Blacklist</h4>
 
-      <form
-        onSubmit={handleAdd}
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <input
-          placeholder="Character name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Realm"
-          value={realm}
-          onChange={(e) => setRealm(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Reason (optional)"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-        <button type="submit">Add</button>
+      <form onSubmit={handleAdd} className="row g-2 mb-4 align-items-end">
+        <div className="col-auto">
+          <input
+            className="form-control form-control-sm"
+            placeholder="Character name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
+        <div className="col-auto">
+          <input
+            className="form-control form-control-sm"
+            placeholder="Realm"
+            value={realm}
+            onChange={(e) => setRealm(e.target.value)}
+            required
+          />
+        </div>
+        <div className="col-auto">
+          <input
+            className="form-control form-control-sm"
+            placeholder="Reason (optional)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+        <div className="col-auto">
+          <button type="submit" className="btn btn-danger btn-sm">
+            Add
+          </button>
+        </div>
       </form>
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="text-center py-5">
+          <div className="spinner-border" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #333" }}>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                Character
-              </th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Realm</th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Reason</th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}>Date</th>
-              <th style={{ textAlign: "left", padding: "0.5rem" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.id} style={{ borderBottom: "1px solid #222" }}>
-                <td style={{ padding: "0.5rem" }}>{e.characterName}</td>
-                <td style={{ padding: "0.5rem" }}>{e.realm}</td>
-                <td style={{ padding: "0.5rem" }}>{e.reason ?? "—"}</td>
-                <td style={{ padding: "0.5rem", fontSize: "0.85rem" }}>
-                  {new Date(e.blacklistedAt).toLocaleDateString()}
-                </td>
-                <td style={{ padding: "0.5rem" }}>
-                  <button
-                    onClick={() => handleRemove(e.id)}
-                    style={{ color: "#ef4444" }}
-                  >
-                    Remove
-                  </button>
-                </td>
+        <div className="table-responsive">
+          <table className="table table-dark table-hover table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Character</th>
+                <th>Realm</th>
+                <th>Reason</th>
+                <th>Date</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td>{e.characterName}</td>
+                  <td>{e.realm}</td>
+                  <td>{e.reason ?? "—"}</td>
+                  <td className="text-muted small">
+                    {new Date(e.blacklistedAt).toLocaleDateString()}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={() => handleRemove(e.id)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {entries.length === 0 && (
+            <p className="text-center text-muted">No blacklisted players</p>
+          )}
+        </div>
       )}
-      {!loading && entries.length === 0 && (
-        <p style={{ color: "#888" }}>No blacklisted players</p>
-      )}
-    </div>
+    </>
   );
 }

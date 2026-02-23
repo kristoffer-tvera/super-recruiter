@@ -35,6 +35,14 @@ export async function updatePlayerStatus(
   return res.json();
 }
 
+export async function requestAiSummary(id: number): Promise<PlayerResponse> {
+  const res = await fetch(`${BASE}/players/${id}/ai-summary`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to generate AI summary");
+  return res.json();
+}
+
 export async function fetchBlacklist(): Promise<BlacklistEntry[]> {
   const res = await fetch(`${BASE}/blacklist`);
   if (!res.ok) throw new Error("Failed to fetch blacklist");

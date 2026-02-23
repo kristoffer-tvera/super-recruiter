@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<PlayerDatabaseService>();
+builder.Services.AddHttpClient<GeminiService>();
 
 // Configure CORS for the React frontend
 builder.Services.AddCors(options =>
@@ -67,6 +68,23 @@ app.MapPut(
     {
         var player = await db.UpdatePlayerStatusAsync(id, request.Status);
         return player is not null ? Results.Ok(player) : Results.NotFound();
+    }
+);
+
+app.MapPost(
+    "/api/players/{id:int}/ai-summary",
+    async (PlayerDatabaseService db, GeminiService gemini, int id) =>
+    {
+        var player = await db.GetPlayerByIdAsync(id);
+        if (player is null)
+            return Results.NotFound();
+
+        var take = await gemini.GetGeminiTakeForPlayer(player);
+        if (string.IsNullOrEmpty(take))
+            return Results.Problem("Failed to generate AI summary");
+
+        var updated = await db.UpdateGeminiTakeAsync(id, take);
+        return updated is not null ? Results.Ok(updated) : Results.NotFound();
     }
 );
 

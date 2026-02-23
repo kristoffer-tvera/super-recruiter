@@ -17,10 +17,9 @@ public class CreatePlayerRequest
     public string? SpecsPlaying { get; set; }
     public List<string> GuildHistory { get; set; } = [];
 
-    // Enrichment data stored as JSON
-    public string? RaiderIoDataJson { get; set; }
-    public string? WarcraftLogsDataJson { get; set; }
-    public string? GeminiTake { get; set; }
+    // Enrichment data stored as pre-rendered markdown summaries
+    public string? RaiderIoSummary { get; set; }
+    public string? WarcraftLogsSummary { get; set; }
 
     // Discord tracking
     public ulong? DiscordMessageId { get; set; }

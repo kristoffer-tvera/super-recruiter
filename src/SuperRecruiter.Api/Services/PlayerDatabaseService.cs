@@ -47,8 +47,8 @@ public class PlayerDatabaseService
                 languages VARCHAR(500),
                 specs_playing VARCHAR(500),
                 guild_history TEXT[] DEFAULT '{}',
-                raiderio_data_json TEXT,
-                warcraftlogs_data_json TEXT,
+                raiderio_summary TEXT,
+                warcraftlogs_summary TEXT,
                 gemini_take TEXT,
                 status INTEGER NOT NULL DEFAULT 0,
                 discord_message_id BIGINT,
@@ -122,16 +122,16 @@ public class PlayerDatabaseService
             ? @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_data_json AS RaiderIoDataJson,
-                warcraftlogs_data_json AS WarcraftLogsDataJson, gemini_take AS GeminiTake,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 created_at AS CreatedAt, updated_at AS UpdatedAt
                 FROM players WHERE status = @Status ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset"
             : @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_data_json AS RaiderIoDataJson,
-                warcraftlogs_data_json AS WarcraftLogsDataJson, gemini_take AS GeminiTake,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 created_at AS CreatedAt, updated_at AS UpdatedAt
                 FROM players ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset";
@@ -157,8 +157,8 @@ public class PlayerDatabaseService
             @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
             item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
             battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-            guild_history AS GuildHistory, raiderio_data_json AS RaiderIoDataJson,
-            warcraftlogs_data_json AS WarcraftLogsDataJson, gemini_take AS GeminiTake,
+            guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+            warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
             status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
             created_at AS CreatedAt, updated_at AS UpdatedAt
             FROM players WHERE id = @Id";
@@ -174,25 +174,25 @@ public class PlayerDatabaseService
             @"
             INSERT INTO players (character_name, class, realm, realm_slug, item_level, last_updated,
                 character_url, battletag, bio, languages, specs_playing, guild_history,
-                raiderio_data_json, warcraftlogs_data_json, gemini_take, status,
+                raiderio_summary, warcraftlogs_summary, status,
                 discord_message_id, discord_channel_id, created_at, updated_at)
             VALUES (@CharacterName, @Class, @Realm, @RealmSlug, @ItemLevel, @LastUpdated,
                 @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory,
-                @RaiderIoDataJson, @WarcraftLogsDataJson, @GeminiTake, @Status,
+                @RaiderIoSummary, @WarcraftLogsSummary, @Status,
                 @DiscordMessageId, @DiscordChannelId, @Now, @Now)
             ON CONFLICT (character_name, realm)
             DO UPDATE SET class = @Class, realm_slug = @RealmSlug, item_level = @ItemLevel,
                 last_updated = @LastUpdated, character_url = @CharacterUrl, battletag = @BattleTag,
                 bio = @Bio, languages = @Languages, specs_playing = @SpecsPlaying,
-                guild_history = @GuildHistory, raiderio_data_json = @RaiderIoDataJson,
-                warcraftlogs_data_json = @WarcraftLogsDataJson, gemini_take = @GeminiTake,
+                guild_history = @GuildHistory, raiderio_summary = @RaiderIoSummary,
+                warcraftlogs_summary = @WarcraftLogsSummary,
                 discord_message_id = @DiscordMessageId, discord_channel_id = @DiscordChannelId,
                 updated_at = @Now
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_data_json AS RaiderIoDataJson,
-                warcraftlogs_data_json AS WarcraftLogsDataJson, gemini_take AS GeminiTake,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
@@ -212,9 +212,8 @@ public class PlayerDatabaseService
                 request.Languages,
                 request.SpecsPlaying,
                 GuildHistory = request.GuildHistory.ToArray(),
-                request.RaiderIoDataJson,
-                request.WarcraftLogsDataJson,
-                request.GeminiTake,
+                request.RaiderIoSummary,
+                request.WarcraftLogsSummary,
                 Status = (int)PlayerStatus.New,
                 DiscordMessageId = (long?)request.DiscordMessageId,
                 DiscordChannelId = (long?)request.DiscordChannelId,
@@ -233,8 +232,8 @@ public class PlayerDatabaseService
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_data_json AS RaiderIoDataJson,
-                warcraftlogs_data_json AS WarcraftLogsDataJson, gemini_take AS GeminiTake,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
@@ -244,6 +243,32 @@ public class PlayerDatabaseService
             {
                 Id = id,
                 Status = (int)status,
+                Now = DateTime.UtcNow,
+            }
+        );
+    }
+
+    public async Task<PlayerResponse?> UpdateGeminiTakeAsync(int id, string geminiTake)
+    {
+        using var connection = CreateConnection();
+
+        var sql =
+            @"
+            UPDATE players SET gemini_take = @GeminiTake, updated_at = @Now WHERE id = @Id
+            RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
+                item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
+                battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
+                status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
+
+        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
+            sql,
+            new
+            {
+                Id = id,
+                GeminiTake = geminiTake,
                 Now = DateTime.UtcNow,
             }
         );

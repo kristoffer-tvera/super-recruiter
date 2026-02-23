@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Discord;
 using Discord.WebSocket;
 using SuperRecruiter.Shared.DTOs;
@@ -19,6 +18,9 @@ public class DiscordBotService : IHostedService
     private readonly IServiceProvider _serviceProvider;
     private readonly string? _botToken;
     private readonly ulong _channelId;
+    private readonly TaskCompletionSource _readyTcs = new(
+        TaskCreationOptions.RunContinuationsAsynchronously
+    );
 
     public DiscordBotService(
         ILogger<DiscordBotService> logger,
@@ -43,6 +45,11 @@ public class DiscordBotService : IHostedService
         _client.Log += LogAsync;
         _client.Ready += ReadyAsync;
         _client.InteractionCreated += InteractionCreatedAsync;
+        _client.Disconnected += ex =>
+        {
+            _logger.LogWarning(ex, "Discord bot disconnected");
+            return Task.CompletedTask;
+        };
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -54,8 +61,9 @@ public class DiscordBotService : IHostedService
         }
 
         await _client.LoginAsync(TokenType.Bot, _botToken);
+        _logger.LogInformation("Discord bot login completed, starting gateway connection...");
         await _client.StartAsync();
-        _logger.LogInformation("Discord bot started");
+        _logger.LogInformation("Discord bot StartAsync returned — waiting for Ready event");
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -76,7 +84,30 @@ public class DiscordBotService : IHostedService
     private Task ReadyAsync()
     {
         _logger.LogInformation("Discord bot connected as {User}", _client.CurrentUser?.Username);
+        _logger.LogInformation(
+            "Discord bot guilds: {GuildCount} | Cached channels: {ChannelCount}",
+            _client.Guilds.Count,
+            _client.Guilds.SelectMany(g => g.Channels).Count()
+        );
+
+        var targetChannel = _client.GetChannel(_channelId);
+
+        _readyTcs.TrySetResult();
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Waits until the bot has fully connected and the guild/channel cache is populated.
+    /// Returns false if the bot isn't configured or doesn't become ready within the timeout.
+    /// </summary>
+    public async Task<bool> WaitUntilReadyAsync(TimeSpan? timeout = null)
+    {
+        if (string.IsNullOrWhiteSpace(_botToken))
+            return false;
+
+        var delay = Task.Delay(timeout ?? TimeSpan.FromSeconds(30));
+        var completed = await Task.WhenAny(_readyTcs.Task, delay);
+        return completed == _readyTcs.Task;
     }
 
     /// <summary>
@@ -86,8 +117,6 @@ public class DiscordBotService : IHostedService
     public async Task<ulong?> SendPlayerMessageAsync(
         Player player,
         RaiderIOProfile? raiderIoProfile,
-        WarcraftLogsCharacterResponse? warcraftLogsData,
-        string? geminiTake,
         int apiPlayerId
     )
     {
@@ -100,23 +129,22 @@ public class DiscordBotService : IHostedService
         var channel = _client.GetChannel(_channelId) as IMessageChannel;
         if (channel == null)
         {
-            _logger.LogWarning("Discord channel {ChannelId} not found", _channelId);
+            _logger.LogWarning(
+                "Discord channel {ChannelId} not found. ConnectionState={State}, Guilds={GuildCount}, LoginState={LoginState}",
+                _channelId,
+                _client.ConnectionState,
+                _client.Guilds.Count,
+                _client.LoginState
+            );
             return null;
         }
 
         var thumbnail = raiderIoProfile?.Thumbnail_url ?? "";
-        var warcraftLogsZoneRankings = warcraftLogsData
-            ?.Data
-            ?.CharacterData
-            ?.Character
-            ?.ZoneRankings;
 
         var links = new List<string>
         {
             $"[Armory](https://worldofwarcraft.blizzard.com/en-gb/character/eu/{player.RealmSlug}/{player.CharacterName})",
-            raiderIoProfile != null
-                ? $"[RaiderIO]({raiderIoProfile.Profile_url})"
-                : "RaiderIO (no data)",
+            $"[RaiderIO](https://raider.io/characters/eu/{player.RealmSlug}/{player.CharacterName})",
             $"[WoWProgress]({player.CharacterUrl})",
             $"[WCL](https://www.warcraftlogs.com/character/eu/{player.RealmSlug}/{player.CharacterName})",
         };
@@ -137,37 +165,7 @@ public class DiscordBotService : IHostedService
             .AddField(
                 "Languages / Specs",
                 $"{player.Languages ?? "N/A"} | {player.SpecsPlaying ?? "N/A"}"
-            )
-            .AddField(
-                "Progression",
-                PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoProfile)
-            )
-            .AddField("AOTC / CE", PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoProfile));
-
-        if (warcraftLogsZoneRankings != null)
-        {
-            var allStars = PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings);
-            if (allStars.Length <= 1024)
-                embed.AddField("WCL Allstars", allStars);
-
-            var bosses = PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings);
-            if (bosses.Length <= 1024)
-                embed.AddField("WCL Bosses", bosses);
-        }
-
-        if (player.GuildHistory.Any())
-        {
-            var historyText = string.Join("\n", player.GuildHistory.Take(10));
-            if (historyText.Length > 1024)
-                historyText = historyText[..1024];
-            embed.AddField("Guild History", historyText);
-        }
-
-        if (!string.IsNullOrEmpty(geminiTake))
-        {
-            var take = geminiTake.Length > 1024 ? geminiTake[..1024] : geminiTake;
-            embed.AddField("AI Evaluation", take);
-        }
+            );
 
         // Build action row with buttons
         var components = new ComponentBuilder()
@@ -186,6 +184,24 @@ public class DiscordBotService : IHostedService
         );
 
         return message.Id;
+    }
+
+    public async Task SendDebugMessageAsync(string content)
+    {
+        if (_client.ConnectionState != ConnectionState.Connected)
+        {
+            _logger.LogWarning("Discord bot not connected — cannot send debug message");
+            return;
+        }
+
+        var channel = _client.GetChannel(_channelId) as IMessageChannel;
+        if (channel == null)
+        {
+            _logger.LogWarning("Discord channel {ChannelId} not found", _channelId);
+            return;
+        }
+
+        await channel.SendMessageAsync($"[DEBUG] {content}");
     }
 
     private async Task InteractionCreatedAsync(SocketInteraction interaction)

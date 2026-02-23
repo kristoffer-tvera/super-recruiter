@@ -222,14 +222,14 @@ public class WowProgressService(
             var events = doc.DocumentNode.SelectNodes("//ul[@class='eventList']//li");
             if (events != null)
             {
+                var history = new List<string>(player.GuildHistory);
                 foreach (var row in events)
                 {
                     var guildEvent = row?.InnerText.Trim();
                     if (!string.IsNullOrEmpty(guildEvent))
-                        player.GuildHistory = player.GuildHistory.Append(
-                            row?.InnerText.Trim() ?? ""
-                        );
+                        history.Add(guildEvent);
                 }
+                player.GuildHistory = history.ToArray();
             }
         }
         catch (Exception ex)

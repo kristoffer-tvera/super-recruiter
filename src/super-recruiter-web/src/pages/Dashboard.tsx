@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fetchPlayers, updatePlayerStatus } from "../api";
+import Markdown from "react-markdown";
+import { fetchPlayers, updatePlayerStatus, requestAiSummary } from "../api";
 import { type PlayerResponse, PlayerStatus } from "../types";
 
 const STATUS_LABELS: Record<PlayerStatus, string> = {
@@ -10,12 +11,12 @@ const STATUS_LABELS: Record<PlayerStatus, string> = {
   [PlayerStatus.Blacklisted]: "Blacklisted",
 };
 
-const STATUS_COLORS: Record<PlayerStatus, string> = {
-  [PlayerStatus.New]: "#3b82f6",
-  [PlayerStatus.Interested]: "#22c55e",
-  [PlayerStatus.Contacted]: "#a855f7",
-  [PlayerStatus.Declined]: "#6b7280",
-  [PlayerStatus.Blacklisted]: "#ef4444",
+const STATUS_BADGE: Record<PlayerStatus, string> = {
+  [PlayerStatus.New]: "bg-primary",
+  [PlayerStatus.Interested]: "bg-success",
+  [PlayerStatus.Contacted]: "bg-info",
+  [PlayerStatus.Declined]: "bg-secondary",
+  [PlayerStatus.Blacklisted]: "bg-danger",
 };
 
 const CLASS_COLORS: Record<string, string> = {
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerResponse | null>(
     null,
   );
+  const [aiLoading, setAiLoading] = useState(false);
 
   const reload = () => {
     setLoading(true);
@@ -51,10 +53,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchPlayers(filter)
-      .then(setPlayers)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    reload();
   }, [filter]);
 
   const handleStatusChange = async (id: number, status: PlayerStatus) => {
@@ -67,296 +66,329 @@ export default function Dashboard() {
     }
   };
 
-  return (
-    <div style={{ padding: "1rem" }}>
-      <h1>Super Recruiter</h1>
+  const handleRequestAi = async () => {
+    if (!selectedPlayer) return;
+    setAiLoading(true);
+    try {
+      const updated = await requestAiSummary(selectedPlayer.id);
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p)),
+      );
+      setSelectedPlayer(updated);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
-      <div
-        style={{
-          marginBottom: "1rem",
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
+  const closeModal = () => setSelectedPlayer(null);
+
+  return (
+    <>
+      {/* Filter bar */}
+      <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
         <button
+          className={`btn btn-sm ${filter === undefined ? "btn-light" : "btn-outline-light"}`}
           onClick={() => setFilter(undefined)}
-          style={{ fontWeight: filter === undefined ? "bold" : "normal" }}
         >
           All
         </button>
-        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setFilter(Number(key) as PlayerStatus)}
-            style={{
-              fontWeight: filter === Number(key) ? "bold" : "normal",
-              color: STATUS_COLORS[Number(key) as PlayerStatus],
-            }}
-          >
-            {label}
-          </button>
-        ))}
-        <button onClick={reload} style={{ marginLeft: "auto" }}>
+        {Object.entries(STATUS_LABELS).map(([key, label]) => {
+          const s = Number(key) as PlayerStatus;
+          return (
+            <button
+              key={key}
+              className={`btn btn-sm ${filter === s ? "btn-light" : "btn-outline-light"}`}
+              onClick={() => setFilter(s)}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <button
+          className="btn btn-sm btn-outline-secondary ms-auto"
+          onClick={reload}
+        >
           Refresh
         </button>
       </div>
 
+      {/* Table */}
       {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <div style={{ flex: 1 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #333" }}>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Player
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Class
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Realm
-                  </th>
-                  <th style={{ textAlign: "right", padding: "0.5rem" }}>
-                    iLvl
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Status
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Found
-                  </th>
-                  <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {players.map((p) => (
-                  <tr
-                    key={p.id}
-                    onClick={() => setSelectedPlayer(p)}
-                    style={{
-                      borderBottom: "1px solid #222",
-                      cursor: "pointer",
-                      background:
-                        selectedPlayer?.id === p.id ? "#1a1a2e" : "transparent",
-                    }}
-                  >
-                    <td style={{ padding: "0.5rem" }}>{p.characterName}</td>
-                    <td
-                      style={{
-                        padding: "0.5rem",
-                        color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
-                      }}
-                    >
-                      {p.class}
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>{p.realm}</td>
-                    <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                      {p.itemLevel.toFixed(1)}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.5rem",
-                        color: STATUS_COLORS[p.status],
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {STATUS_LABELS[p.status]}
-                    </td>
-                    <td style={{ padding: "0.5rem", fontSize: "0.85rem" }}>
-                      {new Date(p.createdAt).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>
-                      <select
-                        value={p.status}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) =>
-                          handleStatusChange(
-                            p.id,
-                            Number(e.target.value) as PlayerStatus,
-                          )
-                        }
-                        style={{ padding: "0.25rem" }}
-                      >
-                        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {players.length === 0 && (
-              <p style={{ textAlign: "center", color: "#888" }}>
-                No players found
-              </p>
-            )}
+        <div className="text-center py-5">
+          <div className="spinner-border" role="status">
+            <span className="visually-hidden">Loading...</span>
           </div>
-
-          {selectedPlayer && (
-            <div
-              style={{
-                flex: 1,
-                maxWidth: "500px",
-                padding: "1rem",
-                border: "1px solid #333",
-                borderRadius: "8px",
-                maxHeight: "80vh",
-                overflow: "auto",
-                textAlign: "left",
-              }}
-            >
-              <h2
-                style={{
-                  color:
-                    CLASS_COLORS[selectedPlayer.class?.toLowerCase()] ?? "#fff",
-                }}
-              >
-                {selectedPlayer.characterName}-{selectedPlayer.realm}
-              </h2>
-              <p>
-                <strong>Class:</strong> {selectedPlayer.class} |{" "}
-                <strong>iLvl:</strong> {selectedPlayer.itemLevel.toFixed(1)}
-              </p>
-              {selectedPlayer.battleTag && (
-                <p>
-                  <strong>BattleTag:</strong> {selectedPlayer.battleTag}
-                </p>
-              )}
-              {selectedPlayer.languages && (
-                <p>
-                  <strong>Languages:</strong> {selectedPlayer.languages}
-                </p>
-              )}
-              {selectedPlayer.specsPlaying && (
-                <p>
-                  <strong>Specs:</strong> {selectedPlayer.specsPlaying}
-                </p>
-              )}
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  margin: "0.5rem 0",
-                  flexWrap: "wrap",
-                }}
-              >
-                <a
-                  href={`https://worldofwarcraft.blizzard.com/en-gb/character/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
-                  target="_blank"
-                  rel="noreferrer"
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table table-dark table-hover table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Class</th>
+                <th>Realm</th>
+                <th className="text-end">iLvl</th>
+                <th>Status</th>
+                <th>Found</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((p) => (
+                <tr
+                  key={p.id}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedPlayer(p)}
                 >
-                  Armory
-                </a>
-                <a
-                  href={selectedPlayer.characterUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WoWProgress
-                </a>
-                <a
-                  href={`https://www.warcraftlogs.com/character/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WCL
-                </a>
-                <a
-                  href={`https://raider.io/characters/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Raider.IO
-                </a>
-              </div>
-
-              {selectedPlayer.bio && (
-                <>
-                  <h3>Bio</h3>
-                  <p style={{ fontSize: "0.9rem", whiteSpace: "pre-wrap" }}>
-                    {selectedPlayer.bio}
-                  </p>
-                </>
-              )}
-
-              {selectedPlayer.geminiTake && (
-                <>
-                  <h3>AI Evaluation</h3>
-                  <pre
+                  <td>{p.characterName}</td>
+                  <td
                     style={{
-                      fontSize: "0.85rem",
-                      whiteSpace: "pre-wrap",
-                      background: "#111",
-                      padding: "0.5rem",
-                      borderRadius: "4px",
+                      color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
                     }}
                   >
-                    {selectedPlayer.geminiTake}
-                  </pre>
-                </>
-              )}
-
-              {selectedPlayer.guildHistory?.length > 0 && (
-                <>
-                  <h3>Guild History</h3>
-                  <ul style={{ fontSize: "0.85rem", paddingLeft: "1.2rem" }}>
-                    {selectedPlayer.guildHistory.slice(0, 15).map((g, i) => (
-                      <li key={i}>{g}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {selectedPlayer.raiderIoDataJson && (
-                <>
-                  <h3>Raider.IO Data</h3>
-                  <p
-                    style={{
-                      color: "#888",
-                      whiteSpace: "pre-wrap",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    {JSON.stringify(
-                      JSON.parse(selectedPlayer.raiderIoDataJson),
-                      null,
-                      2,
-                    )}
-                  </p>
-                </>
-              )}
-
-              {selectedPlayer.warcraftLogsDataJson && (
-                <>
-                  <h3>Warcraft Logs Data</h3>
-                  <p
-                    style={{
-                      color: "#888",
-                      whiteSpace: "pre-wrap",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    {JSON.stringify(
-                      JSON.parse(selectedPlayer.warcraftLogsDataJson),
-                      null,
-                      2,
-                    )}
-                  </p>
-                </>
-              )}
-            </div>
+                    {p.class}
+                  </td>
+                  <td>{p.realm}</td>
+                  <td className="text-end">{p.itemLevel.toFixed(1)}</td>
+                  <td>
+                    <span className={`badge ${STATUS_BADGE[p.status]}`}>
+                      {STATUS_LABELS[p.status]}
+                    </span>
+                  </td>
+                  <td className="text-muted small">
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
+                  <td>
+                    <select
+                      className="form-select form-select-sm"
+                      style={{ width: "auto", minWidth: "120px" }}
+                      value={p.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          p.id,
+                          Number(e.target.value) as PlayerStatus,
+                        )
+                      }
+                    >
+                      {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {players.length === 0 && (
+            <p className="text-center text-muted">No players found</p>
           )}
         </div>
       )}
-    </div>
+
+      {/* Player detail modal */}
+      {selectedPlayer && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex={-1}
+            onClick={closeModal}
+          >
+            <div
+              className="modal-dialog modal-lg modal-dialog-scrollable"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-content bg-dark text-light">
+                <div className="modal-header border-secondary">
+                  <h5
+                    className="modal-title"
+                    style={{
+                      color:
+                        CLASS_COLORS[selectedPlayer.class?.toLowerCase()] ??
+                        "#fff",
+                    }}
+                  >
+                    {selectedPlayer.characterName}-{selectedPlayer.realm}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white"
+                    onClick={closeModal}
+                  />
+                </div>
+                <div className="modal-body">
+                  <p>
+                    <strong>Class:</strong> {selectedPlayer.class} &middot;{" "}
+                    <strong>iLvl:</strong> {selectedPlayer.itemLevel.toFixed(1)}
+                  </p>
+                  {selectedPlayer.battleTag && (
+                    <p>
+                      <strong>BattleTag:</strong> {selectedPlayer.battleTag}
+                    </p>
+                  )}
+                  {selectedPlayer.languages && (
+                    <p>
+                      <strong>Languages:</strong> {selectedPlayer.languages}
+                    </p>
+                  )}
+                  {selectedPlayer.specsPlaying && (
+                    <p>
+                      <strong>Specs:</strong> {selectedPlayer.specsPlaying}
+                    </p>
+                  )}
+
+                  {/* External links */}
+                  <div className="d-flex gap-2 flex-wrap mb-3">
+                    <a
+                      className="btn btn-sm btn-outline-info"
+                      href={`https://worldofwarcraft.blizzard.com/en-gb/character/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Armory
+                    </a>
+                    <a
+                      className="btn btn-sm btn-outline-info"
+                      href={selectedPlayer.characterUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WoWProgress
+                    </a>
+                    <a
+                      className="btn btn-sm btn-outline-info"
+                      href={`https://www.warcraftlogs.com/character/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WCL
+                    </a>
+                    <a
+                      className="btn btn-sm btn-outline-info"
+                      href={`https://raider.io/characters/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Raider.IO
+                    </a>
+                  </div>
+
+                  {/* Bio */}
+                  {selectedPlayer.bio && (
+                    <div className="mb-3">
+                      <h6>Bio</h6>
+                      <p className="small" style={{ whiteSpace: "pre-wrap" }}>
+                        {selectedPlayer.bio}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Raider.IO Summary */}
+                  {selectedPlayer.raiderIoSummary && (
+                    <div className="mb-3">
+                      <h6>Raider.IO</h6>
+                      <div className="small">
+                        <Markdown>{selectedPlayer.raiderIoSummary}</Markdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Warcraft Logs Summary */}
+                  {selectedPlayer.warcraftLogsSummary && (
+                    <div className="mb-3">
+                      <h6>Warcraft Logs</h6>
+                      <div className="small">
+                        <Markdown>
+                          {selectedPlayer.warcraftLogsSummary}
+                        </Markdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Guild History */}
+                  {selectedPlayer.guildHistory?.length > 0 && (
+                    <div className="mb-3">
+                      <h6>Guild History</h6>
+                      <ul className="list-group list-group-flush small">
+                        {selectedPlayer.guildHistory
+                          .slice(0, 15)
+                          .map((g, i) => (
+                            <li
+                              key={i}
+                              className="list-group-item bg-transparent text-light border-secondary py-1"
+                            >
+                              {g}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* AI Evaluation */}
+                  <div className="mb-3">
+                    <h6>AI Evaluation</h6>
+                    {selectedPlayer.geminiTake ? (
+                      <div className="card bg-black border-secondary">
+                        <div className="card-body small">
+                          <Markdown>{selectedPlayer.geminiTake}</Markdown>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-outline-warning btn-sm"
+                        disabled={aiLoading}
+                        onClick={handleRequestAi}
+                      >
+                        {aiLoading ? (
+                          <>
+                            <span
+                              className="spinner-border spinner-border-sm me-1"
+                              role="status"
+                            />
+                            Generating...
+                          </>
+                        ) : (
+                          "Request AI Summary"
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer border-secondary">
+                  <select
+                    className="form-select form-select-sm"
+                    style={{ width: "auto" }}
+                    value={selectedPlayer.status}
+                    onChange={(e) =>
+                      handleStatusChange(
+                        selectedPlayer.id,
+                        Number(e.target.value) as PlayerStatus,
+                      )
+                    }
+                  >
+                    {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={closeModal}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" />
+        </>
+      )}
+    </>
   );
 }
