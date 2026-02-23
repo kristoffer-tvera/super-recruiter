@@ -1,1 +1,7 @@
-<Solution />
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SuperRecruiter.Shared/SuperRecruiter.Shared.csproj" />
+    <Project Path="src/SuperRecruiter.Api/SuperRecruiter.Api.csproj" />
+    <Project Path="src/SuperRecruiter.Worker/SuperRecruiter.Worker.csproj" />
+  </Folder>
+</Solution>
