@@ -15,7 +15,7 @@ public class Player
     public string? Languages { get; set; }
     public string? SpecsPlaying { get; set; }
 
-    public IEnumerable<string> GuildHistory { get; set; } = [];
+    public string[] GuildHistory { get; set; } = [];
 
     public override string ToString()
     {

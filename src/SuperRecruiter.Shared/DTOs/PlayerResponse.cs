@@ -16,7 +16,7 @@ public class PlayerResponse
     public string? Bio { get; set; }
     public string? Languages { get; set; }
     public string? SpecsPlaying { get; set; }
-    public List<string> GuildHistory { get; set; } = [];
+    public string[] GuildHistory { get; set; } = [];
     public string? RaiderIoDataJson { get; set; }
     public string? WarcraftLogsDataJson { get; set; }
     public string? GeminiTake { get; set; }

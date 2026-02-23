@@ -210,6 +210,7 @@ export default function Dashboard() {
                 borderRadius: "8px",
                 maxHeight: "80vh",
                 overflow: "auto",
+                textAlign: "left",
               }}
             >
               <h2
@@ -269,6 +270,13 @@ export default function Dashboard() {
                 >
                   WCL
                 </a>
+                <a
+                  href={`https://raider.io/characters/eu/${selectedPlayer.realmSlug}/${selectedPlayer.characterName}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Raider.IO
+                </a>
               </div>
 
               {selectedPlayer.bio && (
@@ -305,6 +313,44 @@ export default function Dashboard() {
                       <li key={i}>{g}</li>
                     ))}
                   </ul>
+                </>
+              )}
+
+              {selectedPlayer.raiderIoDataJson && (
+                <>
+                  <h3>Raider.IO Data</h3>
+                  <p
+                    style={{
+                      color: "#888",
+                      whiteSpace: "pre-wrap",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    {JSON.stringify(
+                      JSON.parse(selectedPlayer.raiderIoDataJson),
+                      null,
+                      2,
+                    )}
+                  </p>
+                </>
+              )}
+
+              {selectedPlayer.warcraftLogsDataJson && (
+                <>
+                  <h3>Warcraft Logs Data</h3>
+                  <p
+                    style={{
+                      color: "#888",
+                      whiteSpace: "pre-wrap",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    {JSON.stringify(
+                      JSON.parse(selectedPlayer.warcraftLogsDataJson),
+                      null,
+                      2,
+                    )}
+                  </p>
                 </>
               )}
             </div>
