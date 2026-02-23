@@ -6,7 +6,7 @@ public static class PlayerSummaryHelper
 {
     public static string GetBossSummary(ZoneRankings? warcraftLogsZoneRankings)
     {
-        var header = "## __WarcraftLogs - Boss Rankings__:\n- ";
+        var header = "## __WarcraftLogs - Boss Rankings__\n- ";
         var rankings =
             warcraftLogsZoneRankings != null
                 ? string.Join(
@@ -23,7 +23,7 @@ public static class PlayerSummaryHelper
 
     public static string GetAllStarsSummary(ZoneRankings? zoneRankings)
     {
-        var header = "## __WarcraftLogs - Allstars__:";
+        var header = "## __WarcraftLogs - Allstars__";
 
         if (zoneRankings == null || zoneRankings.AllStars == null)
             return $"{header}\n- No WarcraftLogs data";
@@ -42,7 +42,7 @@ public static class PlayerSummaryHelper
 
     public static string GetCurrentExpansionProgressionSummary(RaiderIOProfile? profile)
     {
-        var header = "## __Current Expansion Progression__:";
+        var header = "## __Current Expansion Progression__";
 
         if (profile?.Raid_progression_summary == null)
             return $"{header}\n- No raid data";
@@ -53,7 +53,7 @@ public static class PlayerSummaryHelper
 
     public static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
     {
-        var header = "## __Ahead of the Curve / Cutting Edge__:";
+        var header = "## __Ahead of the Curve / Cutting Edge__";
 
         if (profile?.Raid_achievement_curve == null)
             return $"{header}\n- No RaiderIO data";

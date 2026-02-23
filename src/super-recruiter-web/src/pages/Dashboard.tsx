@@ -247,7 +247,7 @@ export default function Dashboard({
             onClick={closeModal}
           >
             <div
-              className="modal-dialog modal-lg modal-dialog-scrollable"
+              className="modal-dialog modal-xl modal-dialog-scrollable"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-content">
@@ -335,27 +335,29 @@ export default function Dashboard({
                     </div>
                   )}
 
-                  {/* Raider.IO Summary */}
-                  {selectedPlayer.raiderIoSummary && (
-                    <div className="mb-3">
-                      <h6>Raider.IO</h6>
-                      <div className="small">
-                        <Markdown>{selectedPlayer.raiderIoSummary}</Markdown>
+                  <div className="row mb-3">
+                    {/* Raider.IO Summary */}
+                    {selectedPlayer.raiderIoSummary && (
+                      <div className="col">
+                        <h6>Raider.IO</h6>
+                        <div className="small">
+                          <Markdown>{selectedPlayer.raiderIoSummary}</Markdown>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Warcraft Logs Summary */}
-                  {selectedPlayer.warcraftLogsSummary && (
-                    <div className="mb-3">
-                      <h6>Warcraft Logs</h6>
-                      <div className="small">
-                        <Markdown>
-                          {selectedPlayer.warcraftLogsSummary}
-                        </Markdown>
+                    {/* Warcraft Logs Summary */}
+                    {selectedPlayer.warcraftLogsSummary && (
+                      <div className="col">
+                        <h6>Warcraft Logs</h6>
+                        <div className="small">
+                          <Markdown>
+                            {selectedPlayer.warcraftLogsSummary}
+                          </Markdown>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Guild History */}
                   {selectedPlayer.guildHistory?.length > 0 && (
