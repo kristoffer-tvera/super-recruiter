@@ -18,6 +18,7 @@ public class DiscordBotService : IHostedService
     private readonly IServiceProvider _serviceProvider;
     private readonly string? _botToken;
     private readonly ulong _channelId;
+    private readonly string _frontendBaseUrl;
     private readonly TaskCompletionSource _readyTcs = new(
         TaskCreationOptions.RunContinuationsAsynchronously
     );
@@ -33,6 +34,7 @@ public class DiscordBotService : IHostedService
         _serviceProvider = serviceProvider;
         _botToken = configuration["Discord:BotToken"];
         _channelId = configuration.GetValue<ulong>("Discord:ChannelId");
+        _frontendBaseUrl = configuration["FrontendBaseUrl"] ?? "http://localhost:5173";
 
         _client = new DiscordSocketClient(
             new DiscordSocketConfig
@@ -173,6 +175,11 @@ public class DiscordBotService : IHostedService
             .WithButton("Contacted", $"status:contacted:{apiPlayerId}", ButtonStyle.Primary)
             .WithButton("Declined", $"status:declined:{apiPlayerId}", ButtonStyle.Secondary)
             .WithButton("Blacklist", $"status:blacklist:{apiPlayerId}", ButtonStyle.Danger)
+            .WithButton(
+                "Open",
+                style: ButtonStyle.Link,
+                url: $"{_frontendBaseUrl}/players/{apiPlayerId}"
+            )
             .Build();
 
         var message = await channel.SendMessageAsync(embed: embed.Build(), components: components);

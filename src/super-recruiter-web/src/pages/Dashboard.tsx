@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Markdown from "react-markdown";
-import { fetchPlayers, updatePlayerStatus, requestAiSummary } from "../api";
+import {
+  fetchPlayers,
+  fetchPlayer,
+  updatePlayerStatus,
+  requestAiSummary,
+} from "../api";
 import { type PlayerResponse, PlayerStatus } from "../types";
 
 const STATUS_LABELS: Record<PlayerStatus, string> = {
@@ -35,7 +40,11 @@ const CLASS_COLORS: Record<string, string> = {
   warrior: "#C79C6E",
 };
 
-export default function Dashboard() {
+export default function Dashboard({
+  initialPlayerId,
+}: {
+  initialPlayerId?: number;
+}) {
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
   const [filter, setFilter] = useState<PlayerStatus | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -52,8 +61,49 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   };
 
+  // Open a player modal and update the URL
+  const openPlayer = useCallback((player: PlayerResponse) => {
+    setSelectedPlayer(player);
+    window.history.pushState(null, "", `/players/${player.id}`);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setSelectedPlayer(null);
+    window.history.pushState(null, "", "/");
+  }, []);
+
+  // Handle browser back/forward
   useEffect(() => {
-    reload();
+    const onPopState = () => {
+      const match = window.location.pathname.match(/^\/players\/(\d+)$/);
+      if (match) {
+        const id = Number(match[1]);
+        const existing = players.find((p) => p.id === id);
+        if (existing) {
+          setSelectedPlayer(existing);
+        } else {
+          fetchPlayer(id).then(setSelectedPlayer).catch(console.error);
+        }
+      } else {
+        setSelectedPlayer(null);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [players]);
+
+  // On first load, check if URL has a player ID to deep-link into
+  useEffect(() => {
+    if (initialPlayerId) {
+      fetchPlayer(initialPlayerId).then(setSelectedPlayer).catch(console.error);
+    }
+  }, [initialPlayerId]);
+
+  useEffect(() => {
+    fetchPlayers(filter)
+      .then(setPlayers)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [filter]);
 
   const handleStatusChange = async (id: number, status: PlayerStatus) => {
@@ -82,14 +132,12 @@ export default function Dashboard() {
     }
   };
 
-  const closeModal = () => setSelectedPlayer(null);
-
   return (
     <>
       {/* Filter bar */}
       <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
         <button
-          className={`btn btn-sm ${filter === undefined ? "btn-light" : "btn-outline-light"}`}
+          className={`btn btn-sm ${filter === undefined ? "btn-primary" : "btn-outline-primary"}`}
           onClick={() => setFilter(undefined)}
         >
           All
@@ -99,7 +147,7 @@ export default function Dashboard() {
           return (
             <button
               key={key}
-              className={`btn btn-sm ${filter === s ? "btn-light" : "btn-outline-light"}`}
+              className={`btn btn-sm ${filter === s ? "btn-primary" : "btn-outline-primary"}`}
               onClick={() => setFilter(s)}
             >
               {label}
@@ -123,7 +171,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="table-responsive">
-          <table className="table table-dark table-hover table-striped align-middle">
+          <table className="table table-hover table-striped align-middle">
             <thead>
               <tr>
                 <th>Player</th>
@@ -140,7 +188,7 @@ export default function Dashboard() {
                 <tr
                   key={p.id}
                   style={{ cursor: "pointer" }}
-                  onClick={() => setSelectedPlayer(p)}
+                  onClick={() => openPlayer(p)}
                 >
                   <td>{p.characterName}</td>
                   <td
@@ -202,21 +250,21 @@ export default function Dashboard() {
               className="modal-dialog modal-lg modal-dialog-scrollable"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="modal-content bg-dark text-light">
-                <div className="modal-header border-secondary">
+              <div className="modal-content">
+                <div className="modal-header">
                   <h5
                     className="modal-title"
                     style={{
                       color:
                         CLASS_COLORS[selectedPlayer.class?.toLowerCase()] ??
-                        "#fff",
+                        "inherit",
                     }}
                   >
                     {selectedPlayer.characterName}-{selectedPlayer.realm}
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={closeModal}
                   />
                 </div>
@@ -317,10 +365,7 @@ export default function Dashboard() {
                         {selectedPlayer.guildHistory
                           .slice(0, 15)
                           .map((g, i) => (
-                            <li
-                              key={i}
-                              className="list-group-item bg-transparent text-light border-secondary py-1"
-                            >
+                            <li key={i} className="list-group-item py-1">
                               {g}
                             </li>
                           ))}
@@ -332,7 +377,7 @@ export default function Dashboard() {
                   <div className="mb-3">
                     <h6>AI Evaluation</h6>
                     {selectedPlayer.geminiTake ? (
-                      <div className="card bg-black border-secondary">
+                      <div className="card">
                         <div className="card-body small">
                           <Markdown>{selectedPlayer.geminiTake}</Markdown>
                         </div>
@@ -358,7 +403,7 @@ export default function Dashboard() {
                     )}
                   </div>
                 </div>
-                <div className="modal-footer border-secondary">
+                <div className="modal-footer">
                   <select
                     className="form-select form-select-sm"
                     style={{ width: "auto" }}
