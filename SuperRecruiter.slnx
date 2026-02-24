@@ -1,7 +1,5 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/SuperRecruiter.Shared/SuperRecruiter.Shared.csproj" />
-    <Project Path="src/SuperRecruiter.Api/SuperRecruiter.Api.csproj" />
-    <Project Path="src/SuperRecruiter.Worker/SuperRecruiter.Worker.csproj" />
-  </Folder>
+    <Project Path="SuperRecruiter.Shared/SuperRecruiter.Shared.csproj" />
+    <Project Path="SuperRecruiter.Api/SuperRecruiter.Api.csproj" />
+    <Project Path="SuperRecruiter.Worker/SuperRecruiter.Worker.csproj" />
 </Solution>
