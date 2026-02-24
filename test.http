@@ -1,4 +1,0 @@
-### Test WoW Progress
-GET https://www.wowprogress.com/gearscore/eu?lfg=1&sortby=ts HTTP/1.1
-
-###
