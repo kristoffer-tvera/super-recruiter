@@ -1,10 +1,12 @@
-export enum PlayerStatus {
-  New = 0,
-  Interested = 1,
-  Contacted = 2,
-  Declined = 3,
-  Blacklisted = 4,
-}
+export const PlayerStatus = {
+  New: 0,
+  Interested: 1,
+  Contacted: 2,
+  Declined: 3,
+  Blacklisted: 4,
+} as const;
+
+export type PlayerStatus = (typeof PlayerStatus)[keyof typeof PlayerStatus];
 
 export interface PlayerResponse {
   id: number;
