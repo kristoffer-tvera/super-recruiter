@@ -42,3 +42,5 @@ jobs:
           strip_components: 2
           overwrite: true
           rm: true
+          timeout: 120s
+          command_timeout: 10m
