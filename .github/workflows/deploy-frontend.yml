@@ -35,8 +35,8 @@ jobs:
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USERNAME }}
-          password: ${{ secrets.DO_PASSWORD }}
-          port: ${{ secrets.DO_SSH_PORT || 22 }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: 22
           source: "super-recruiter-web/dist/*"
           target: "/var/www/super-recruiter-web"
           strip_components: 2
