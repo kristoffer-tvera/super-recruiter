@@ -1,0 +1,44 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "super-recruiter-web/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: super-recruiter-web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: super-recruiter-web
+        run: npm ci
+
+      - name: Build
+        working-directory: super-recruiter-web
+        run: npm run build
+
+      - name: Deploy to Digital Ocean
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          password: ${{ secrets.DO_PASSWORD }}
+          port: ${{ secrets.DO_SSH_PORT || 22 }}
+          source: "super-recruiter-web/dist/*"
+          target: "/var/www/super-recruiter-web"
+          strip_components: 2
+          overwrite: true
+          rm: true
