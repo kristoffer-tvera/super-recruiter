@@ -1,0 +1,71 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "SuperRecruiter.Api/**"
+      - "SuperRecruiter.Shared/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish API
+        run: |
+          dotnet publish SuperRecruiter.Api/SuperRecruiter.Api.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -o ./publish
+
+      - name: Deploy to staging directory
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: 22
+          source: "publish/*"
+          target: "/opt/super-recruiter-api-staging"
+          strip_components: 1
+          overwrite: true
+          rm: true
+          timeout: 120s
+          command_timeout: 10m
+
+      - name: Stop, swap, and start service
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            # Stop the running service
+            sudo systemctl stop super-recruiter-api || true
+
+            # Swap staging into live
+            rm -rf /opt/super-recruiter-api-old
+            if [ -d /opt/super-recruiter-api ]; then
+              mv /opt/super-recruiter-api /opt/super-recruiter-api-old
+            fi
+            mv /opt/super-recruiter-api-staging /opt/super-recruiter-api
+
+            # Ensure the binary is executable
+            chmod +x /opt/super-recruiter-api/SuperRecruiter.Api
+
+            # Start the service
+            sudo systemctl start super-recruiter-api
