@@ -109,38 +109,47 @@ public class PlayerDatabaseService
     }
 
     // --- Players (enriched) ---
+    private string BasePlayerSelectQuery =>
+        @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
+            item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
+            battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
+            guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+            warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
+            status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+            created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM players";
 
     public async Task<List<PlayerResponse>> GetPlayersAsync(
         PlayerStatus? status = null,
+        string? playerClass = null,
         int limit = 50,
         int offset = 0
     )
     {
         using var connection = CreateConnection();
 
-        var sql = status.HasValue
-            ? @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
-                item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
-                battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
-                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
-                status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                created_at AS CreatedAt, updated_at AS UpdatedAt
-                FROM players WHERE status = @Status ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset"
-            : @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
-                item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
-                battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
-                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
-                status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                created_at AS CreatedAt, updated_at AS UpdatedAt
-                FROM players ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset";
+        var sql = BasePlayerSelectQuery;
+
+        if (status.HasValue || !string.IsNullOrEmpty(playerClass))
+        {
+            sql += " WHERE";
+            var conditions = new List<string>();
+            if (status.HasValue)
+                conditions.Add(" status = @Status");
+            if (!string.IsNullOrEmpty(playerClass))
+                conditions.Add(" LOWER(class) = LOWER(@PlayerClass)");
+            sql += string.Join(" AND", conditions);
+        }
+
+        /**where**/
+        sql += " ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset";
 
         var players = await connection.QueryAsync<PlayerResponse>(
             sql,
             new
             {
                 Status = (int?)status,
+                PlayerClass = playerClass,
                 Limit = limit,
                 Offset = offset,
             }
@@ -153,15 +162,7 @@ public class PlayerDatabaseService
     {
         using var connection = CreateConnection();
 
-        var sql =
-            @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
-            item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
-            battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-            guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
-            warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
-            status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-            created_at AS CreatedAt, updated_at AS UpdatedAt
-            FROM players WHERE id = @Id";
+        var sql = $"{BasePlayerSelectQuery} WHERE id = @Id";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(sql, new { Id = id });
     }

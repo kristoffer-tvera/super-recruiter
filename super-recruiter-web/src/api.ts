@@ -8,9 +8,11 @@ const BASE = "/api";
 
 export async function fetchPlayers(
   status?: PlayerStatus,
+  className?: string,
 ): Promise<PlayerResponse[]> {
   const params = new URLSearchParams();
   if (status !== undefined) params.set("status", String(status));
+  if (className) params.set("playerClass", className);
   const res = await fetch(`${BASE}/players?${params}`);
   if (!res.ok) throw new Error("Failed to fetch players");
   return res.json();

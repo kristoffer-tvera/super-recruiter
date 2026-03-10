@@ -19,9 +19,20 @@ public static class EndpointMapper
     {
         api.MapGet(
             "/players",
-            async (PlayerDatabaseService db, PlayerStatus? status, int? limit, int? offset) =>
+            async (
+                PlayerDatabaseService db,
+                PlayerStatus? status,
+                string? playerClass,
+                int? limit,
+                int? offset
+            ) =>
             {
-                var players = await db.GetPlayersAsync(status, limit ?? 50, offset ?? 0);
+                var players = await db.GetPlayersAsync(
+                    status,
+                    playerClass,
+                    limit ?? 50,
+                    offset ?? 0
+                );
                 return Results.Ok(players);
             }
         );

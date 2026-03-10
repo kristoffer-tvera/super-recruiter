@@ -40,6 +40,29 @@ const CLASS_COLORS: Record<string, string> = {
   warrior: "#C79C6E",
 };
 
+const CLASS_ICONS: Record<string, string> = {
+  "death knight":
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_deathknight.jpg",
+  deathknight:
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_deathknight.jpg",
+  "demon hunter":
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_demonhunter.jpg",
+  druid: "https://render-us.worldofwarcraft.com/icons/56/classicon_druid.jpg",
+  evoker: "https://render-us.worldofwarcraft.com/icons/56/classicon_evoker.jpg",
+  hunter: "https://render-us.worldofwarcraft.com/icons/56/classicon_hunter.jpg",
+  mage: "https://render-us.worldofwarcraft.com/icons/56/classicon_mage.jpg",
+  monk: "https://render-us.worldofwarcraft.com/icons/56/classicon_monk.jpg",
+  paladin:
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_paladin.jpg",
+  priest: "https://render-us.worldofwarcraft.com/icons/56/classicon_priest.jpg",
+  rogue: "https://render-us.worldofwarcraft.com/icons/56/classicon_rogue.jpg",
+  shaman: "https://render-us.worldofwarcraft.com/icons/56/classicon_shaman.jpg",
+  warlock:
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_warlock.jpg",
+  warrior:
+    "https://render-us.worldofwarcraft.com/icons/56/classicon_warrior.jpg",
+};
+
 export default function Dashboard({
   initialPlayerId,
 }: {
@@ -47,6 +70,7 @@ export default function Dashboard({
 }) {
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
   const [filter, setFilter] = useState<PlayerStatus | undefined>(undefined);
+  const [classFilter, setClassFilter] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerResponse | null>(
     null,
@@ -100,11 +124,11 @@ export default function Dashboard({
   }, [initialPlayerId]);
 
   useEffect(() => {
-    fetchPlayers(filter)
+    fetchPlayers(filter, classFilter)
       .then(setPlayers)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [filter]);
+  }, [filter, classFilter]);
 
   const handleStatusChange = async (id: number, status: PlayerStatus) => {
     try {
@@ -154,6 +178,19 @@ export default function Dashboard({
             </button>
           );
         })}
+        <select
+          className="form-select form-select-sm ms-2"
+          style={{ width: "auto", minWidth: "120px" }}
+          value={classFilter}
+          onChange={(e) => setClassFilter(e.target.value || undefined)}
+        >
+          <option value="">All Classes</option>
+          {Object.keys(CLASS_ICONS).map((cls) => (
+            <option key={cls} value={cls}>
+              {cls.charAt(0).toUpperCase() + cls.slice(1)}
+            </option>
+          ))}
+        </select>
         <button
           className="btn btn-sm btn-outline-secondary ms-auto"
           onClick={reload}
@@ -170,70 +207,84 @@ export default function Dashboard({
           </div>
         </div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-hover table-striped align-middle">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Class</th>
-                <th>Realm</th>
-                <th className="text-end">iLvl</th>
-                <th>Status</th>
-                <th>Found</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => (
-                <tr
-                  key={p.id}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => openPlayer(p)}
+        <div className="text-light">
+          {/* Header row */}
+          <div
+            className="row fw-bold border-bottom py-3 small d-none d-md-flex align-items-center"
+            style={{ backgroundColor: "#1A1716", color: "#fff" }}
+          >
+            <div className="col-3">Player</div>
+            <div className="col-1">Class</div>
+            <div className="col-2">Realm</div>
+            <div className="col-1 text-end">iLvl</div>
+            <div className="col-1">Status</div>
+            <div className="col-2">Found</div>
+            <div className="col-2">Actions</div>
+          </div>
+
+          {players.map((p, i) => (
+            <div
+              key={p.id}
+              className={`row align-items-center py-2 ${i % 2 === 0 ? "table-bg-light" : "table-bg-dark"}`}
+              style={{ cursor: "pointer", borderRadius: 4 }}
+              onClick={() => openPlayer(p)}
+            >
+              <div
+                className="col-md-3 fw-semibold"
+                style={{
+                  color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
+                }}
+              >
+                {p.characterName}
+              </div>
+              <div className="col-md-1">
+                {CLASS_ICONS[p.class.toLowerCase()] && (
+                  <img
+                    src={CLASS_ICONS[p.class.toLowerCase()]}
+                    alt={p.class}
+                    style={{ width: 20, height: 20 }}
+                  />
+                )}
+              </div>
+              <div className="col-md-2">{p.realm}</div>
+              <div className="col-md-1 text-end">{p.itemLevel.toFixed(1)}</div>
+              <div className="col-md-1">
+                <span className={`badge ${STATUS_BADGE[p.status]}`}>
+                  {STATUS_LABELS[p.status]}
+                </span>
+              </div>
+              <div className="col-md-2 small">
+                {new Date(p.createdAt).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                })}
+              </div>
+              <div className="col-md-2">
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: "auto", minWidth: "120px" }}
+                  value={p.status}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) =>
+                    handleStatusChange(
+                      p.id,
+                      Number(e.target.value) as PlayerStatus,
+                    )
+                  }
                 >
-                  <td>{p.characterName}</td>
-                  <td
-                    style={{
-                      color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
-                    }}
-                  >
-                    {p.class}
-                  </td>
-                  <td>{p.realm}</td>
-                  <td className="text-end">{p.itemLevel.toFixed(1)}</td>
-                  <td>
-                    <span className={`badge ${STATUS_BADGE[p.status]}`}>
-                      {STATUS_LABELS[p.status]}
-                    </span>
-                  </td>
-                  <td className="text-muted small">
-                    {new Date(p.createdAt).toLocaleDateString()}
-                  </td>
-                  <td>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ width: "auto", minWidth: "120px" }}
-                      value={p.status}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          p.id,
-                          Number(e.target.value) as PlayerStatus,
-                        )
-                      }
-                    >
-                      {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))}
+
           {players.length === 0 && (
-            <p className="text-center text-muted">No players found</p>
+            <p className="text-center text-muted mt-3">No players found</p>
           )}
         </div>
       )}

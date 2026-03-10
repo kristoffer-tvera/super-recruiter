@@ -24,7 +24,7 @@ function App() {
 
   return (
     <div>
-      <nav className="navbar navbar-expand bg-body-tertiary border-bottom">
+      <nav className="navbar navbar-expand navbar-dark bg-dark border-bottom">
         <div className="container-fluid">
           <span className="navbar-brand mb-0 h1">Super Recruiter</span>
           <ul className="navbar-nav">
@@ -47,7 +47,7 @@ function App() {
           </ul>
         </div>
       </nav>
-      <div className="container-fluid mt-3">
+      <div className="container-fluid pt-3 bg-dark">
         {page === "dashboard" ? (
           <Dashboard initialPlayerId={initial.playerId} />
         ) : (
