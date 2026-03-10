@@ -12,7 +12,9 @@ builder.Services.AddHttpClient<WarcraftLogsService>();
 // Our own API client
 builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
 {
-    var baseUrl = builder.Configuration["SuperRecruiterApi:BaseUrl"] ?? "http://localhost:5100";
+    var baseUrl =
+        builder.Configuration["SuperRecruiterApi:BaseUrl"]
+        ?? throw new InvalidOperationException("SuperRecruiterApi:BaseUrl is not configured");
     client.BaseAddress = new Uri(baseUrl);
 });
 

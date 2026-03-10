@@ -34,7 +34,9 @@ public class DiscordBotService : IHostedService
         _serviceProvider = serviceProvider;
         _botToken = configuration["Discord:BotToken"];
         _channelId = configuration.GetValue<ulong>("Discord:ChannelId");
-        _frontendBaseUrl = configuration["FrontendBaseUrl"] ?? "http://localhost:5173";
+        _frontendBaseUrl =
+            configuration["FrontendBaseUrl"]
+            ?? throw new InvalidOperationException("FrontendBaseUrl is not configured");
 
         _client = new DiscordSocketClient(
             new DiscordSocketConfig
