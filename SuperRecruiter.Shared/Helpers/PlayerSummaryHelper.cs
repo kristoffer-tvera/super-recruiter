@@ -8,7 +8,7 @@ public static class PlayerSummaryHelper
     {
         var header = "## __WarcraftLogs - Boss Rankings__\n- ";
         var rankings =
-            warcraftLogsZoneRankings != null
+            warcraftLogsZoneRankings?.Rankings != null
                 ? string.Join(
                     "\n- ",
                     warcraftLogsZoneRankings

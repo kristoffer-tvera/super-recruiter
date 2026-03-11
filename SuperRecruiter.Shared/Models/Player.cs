@@ -17,6 +17,8 @@ public class Player
 
     public string[] GuildHistory { get; set; } = [];
 
+    public LfgSource Source { get; set; }
+
     public override string ToString()
     {
         return $"{CharacterName} - {Class} ({ItemLevel:F2}) - {Realm}"
@@ -27,4 +29,10 @@ public class Player
     {
         return realm.ToLower().Replace(" ", "-").Replace("'", "");
     }
+}
+
+public enum LfgSource
+{
+    WoWProgress,
+    RaiderIO,
 }

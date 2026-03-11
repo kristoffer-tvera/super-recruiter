@@ -115,6 +115,92 @@ public class RaiderIOService(
         }
     }
 
+    public async Task<List<Player>> GetLfgPlayers(CancellationToken cancellationToken = default)
+    {
+        var queryStringParameters = new Dictionary<string, string>
+        {
+            { "type", "character" },
+            { "region[0][eq]", "eu" },
+            { "timezone", "UTC" },
+            { "sort[recruitment.guild_raids.profile.published_at]", "desc" },
+            { "limit", "40" },
+            { "offset", "0" },
+        };
+
+        var url =
+            $"{BaseUrl}/search-advanced?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
+
+        logger.LogInformation("Fetching RaiderIO LFG matches with URL: {Url}", url);
+
+        var response = await httpClient.GetAsync(url, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning(
+                "Failed to fetch RaiderIO LFG matches. Status: {Status}",
+                response.StatusCode
+            );
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        var lfgResponse = JsonSerializer.Deserialize<RaiderIOLfg>(json, options);
+        var players = new List<Player>();
+
+        foreach (var match in lfgResponse?.Matches ?? Enumerable.Empty<LfgMatch>())
+        {
+            var player = new Player
+            {
+                CharacterName = match.Name,
+                Realm = match.Data.Realm.Name,
+                Class = match.Data.Class.Name,
+                SpecsPlaying = match.Data.Spec?.Name,
+                CharacterUrl =
+                    $"https://www.wowprogress.com/character/eu/{match.Data.Realm.Slug}/{match.Name}",
+                Bio = match.Data.Recruitment?.GuildRaids?.Profile?.Caption ?? string.Empty,
+                ItemLevel = match.Data.ItemLevelEquipped,
+                LastUpdated =
+                    match.Data.Recruitment?.GuildRaids?.Profile?.ThrottledPublishedAt
+                    ?? DateTime.UtcNow,
+                Languages = GetLanguages(match.Data.Recruitment),
+                Source = LfgSource.RaiderIO,
+            };
+
+            players.Add(player);
+        }
+
+        logger.LogInformation("Successfully parsed {Count} players from RaiderIo", players.Count);
+
+        return players;
+    }
+
+    private string? GetLanguages(LfgRecruitment data)
+    {
+        var languageCodes = data.GuildRaids.Profile.Languages;
+        var languageNames = languageCodes
+            ?.Select(code =>
+                code switch
+                {
+                    1 => "English",
+                    2 => "German",
+                    3 => "Spanish",
+                    4 => "French",
+                    5 => "Italian",
+                    7 => "Russian",
+                    88 => "Norwegian",
+                    96 => "Polish",
+                    114 => "Swedish",
+                    120 => "Turkish",
+                    _ => null,
+                }
+            )
+            .Where(name => name != null);
+        return languageNames != null ? string.Join(", ", languageNames) : null;
+    }
+
     private List<string> GetRaidProgressionSummary(RaiderIOProfile profile)
     {
         if (profile.Raid_progression == null || !profile.Raid_progression.Any())

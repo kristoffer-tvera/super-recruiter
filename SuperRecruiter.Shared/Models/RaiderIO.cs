@@ -119,3 +119,126 @@ public class Profile
     [JsonPropertyName("published_at")]
     public DateTime? PublishedAt { get; set; }
 }
+
+public class RaiderIOLfg
+{
+    [JsonPropertyName("matches")]
+    public List<LfgMatch>? Matches { get; set; }
+}
+
+public class LfgMatch
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+
+    [JsonPropertyName("data")]
+    public LfgData Data { get; set; }
+}
+
+public class LfgData
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("expansionId")]
+    public int ExpansionId { get; set; }
+
+    [JsonPropertyName("wowCharacterId")]
+    public int WowCharacterId { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+
+    [JsonPropertyName("level")]
+    public int Level { get; set; }
+
+    [JsonPropertyName("achievementPoints")]
+    public int AchievementPoints { get; set; }
+
+    [JsonPropertyName("role")]
+    public string Role { get; set; }
+
+    [JsonPropertyName("itemLevelEquipped")]
+    public double ItemLevelEquipped { get; set; }
+
+    [JsonPropertyName("recruitment")]
+    public LfgRecruitment Recruitment { get; set; }
+
+    [JsonPropertyName("thumbnailUrl")]
+    public string ThumbnailUrl { get; set; }
+
+    [JsonPropertyName("realm")]
+    public LfgRealm Realm { get; set; }
+
+    [JsonPropertyName("class")]
+    public LfgClass Class { get; set; }
+
+    [JsonPropertyName("spec")]
+    public LfgSpec Spec { get; set; }
+
+    [JsonPropertyName("stream")]
+    public object Stream { get; set; }
+}
+
+public class LfgSpec
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; }
+}
+
+public class LfgGuildRaids
+{
+    [JsonPropertyName("profile")]
+    public LfgProfile Profile { get; set; }
+
+    [JsonPropertyName("additional_character_count")]
+    public int AdditionalCharacterCount { get; set; }
+}
+
+public class LfgProfile
+{
+    [JsonPropertyName("throttled_published_at")]
+    public DateTime ThrottledPublishedAt { get; set; }
+
+    [JsonPropertyName("caption")]
+    public string Caption { get; set; }
+
+    [JsonPropertyName("languages")]
+    public List<int> Languages { get; set; }
+}
+
+public class LfgRealm
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; }
+
+    [JsonPropertyName("altSlug")]
+    public string AltSlug { get; set; }
+}
+
+public class LfgRecruitment
+{
+    [JsonPropertyName("guild_raids")]
+    public LfgGuildRaids GuildRaids { get; set; }
+}
+
+public class LfgClass
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; }
+}

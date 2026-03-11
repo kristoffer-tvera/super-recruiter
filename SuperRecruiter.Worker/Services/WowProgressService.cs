@@ -127,6 +127,7 @@ public class WowProgressService(
                             ? BaseUrl + characterUrl
                             : characterUrl,
                         Bio = "",
+                        Source = LfgSource.WoWProgress,
                     };
 
                     players.Add(player);
@@ -137,7 +138,10 @@ public class WowProgressService(
                 }
             }
 
-            logger.LogInformation("Successfully parsed {Count} players", players.Count);
+            logger.LogInformation(
+                "Successfully parsed {Count} players from WoWProgress",
+                players.Count
+            );
         }
         catch (Exception ex)
         {

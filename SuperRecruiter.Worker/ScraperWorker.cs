@@ -43,11 +43,16 @@ public class ScraperWorker(
             {
                 logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-                var players = await wowProgressService.GetLookingForGuildPlayersAsync(
-                    stoppingToken
-                );
+                var playersFromWoWProgress =
+                    await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
 
-                players = [.. players.Take(10)]; // while debugging
+                var playersFromRaiderIo = await raiderIOService.GetLfgPlayers(stoppingToken);
+
+                var players = playersFromWoWProgress
+                    .Concat(playersFromRaiderIo)
+                    .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
+                    .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
+                    .ToList();
 
                 if (players.Count == 0)
                 {
@@ -157,10 +162,19 @@ public class ScraperWorker(
         );
 
         // 3. Enrich from WoWProgress detail page
-        var detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
-            player,
-            cancellationToken
-        );
+        Player detailedPlayer;
+        if (player.Source == LfgSource.WoWProgress)
+        {
+            detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
+                player,
+                cancellationToken
+            );
+        }
+        else
+        {
+            // For RaiderIO-sourced players, we may already have most of the details we need from the RaiderIO profile, so we can skip the WoWProgress detail page enrichment to reduce load and avoid potential issues with WoWProgress blocking requests.
+            detailedPlayer = player;
+        }
 
         // 4. Language filter
         if (!string.IsNullOrWhiteSpace(player.Languages))
