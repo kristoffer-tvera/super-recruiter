@@ -42,25 +42,25 @@ const CLASS_COLORS: Record<string, string> = {
 
 const CLASS_ICONS: Record<string, string> = {
   "death knight":
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_deathknight.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_deathknight.jpg",
   deathknight:
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_deathknight.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_deathknight.jpg",
   "demon hunter":
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_demonhunter.jpg",
-  druid: "https://render-us.worldofwarcraft.com/icons/56/classicon_druid.jpg",
-  evoker: "https://render-us.worldofwarcraft.com/icons/56/classicon_evoker.jpg",
-  hunter: "https://render-us.worldofwarcraft.com/icons/56/classicon_hunter.jpg",
-  mage: "https://render-us.worldofwarcraft.com/icons/56/classicon_mage.jpg",
-  monk: "https://render-us.worldofwarcraft.com/icons/56/classicon_monk.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_demonhunter.jpg",
+  druid: "https://render.worldofwarcraft.com/eu/icons/56/classicon_druid.jpg",
+  evoker: "https://render.worldofwarcraft.com/eu/icons/56/classicon_evoker.jpg",
+  hunter: "https://render.worldofwarcraft.com/eu/icons/56/classicon_hunter.jpg",
+  mage: "https://render.worldofwarcraft.com/eu/icons/56/classicon_mage.jpg",
+  monk: "https://render.worldofwarcraft.com/eu/icons/56/classicon_monk.jpg",
   paladin:
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_paladin.jpg",
-  priest: "https://render-us.worldofwarcraft.com/icons/56/classicon_priest.jpg",
-  rogue: "https://render-us.worldofwarcraft.com/icons/56/classicon_rogue.jpg",
-  shaman: "https://render-us.worldofwarcraft.com/icons/56/classicon_shaman.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_paladin.jpg",
+  priest: "https://render.worldofwarcraft.com/eu/icons/56/classicon_priest.jpg",
+  rogue: "https://render.worldofwarcraft.com/eu/icons/56/classicon_rogue.jpg",
+  shaman: "https://render.worldofwarcraft.com/eu/icons/56/classicon_shaman.jpg",
   warlock:
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_warlock.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_warlock.jpg",
   warrior:
-    "https://render-us.worldofwarcraft.com/icons/56/classicon_warrior.jpg",
+    "https://render.worldofwarcraft.com/eu/icons/56/classicon_warrior.jpg",
 };
 
 export default function Dashboard({
@@ -258,6 +258,8 @@ export default function Dashboard({
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </div>
               <div className="col-md-2">
