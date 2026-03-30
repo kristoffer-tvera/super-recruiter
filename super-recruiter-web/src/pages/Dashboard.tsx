@@ -15,13 +15,18 @@ import {
 import FilterBar from "../components/FilterBar";
 import PlayerDetailModal from "../components/PlayerDetailModal";
 
+const PAGE_SIZE = 20;
+
 export default function Dashboard({
   initialPlayerId,
 }: {
   initialPlayerId?: number;
 }) {
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
-  const [playerFilter, setPlayerFilter] = useState<PlayerFilter>({});
+  const [playerFilter, setPlayerFilter] = useState<PlayerFilter>({
+    limit: PAGE_SIZE,
+    offset: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerResponse | null>(
     null,
@@ -34,6 +39,14 @@ export default function Dashboard({
       .then(setPlayers)
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  const handleFilterChange = (next: PlayerFilter) => {
+    setPlayerFilter({ ...next, limit: PAGE_SIZE, offset: 0 });
+  };
+
+  const goToPage = (offset: number) => {
+    setPlayerFilter((prev) => ({ ...prev, offset }));
   };
 
   // Open a player modal and update the URL
@@ -112,7 +125,7 @@ export default function Dashboard({
       {/* Filter bar */}
       <FilterBar
         filter={playerFilter}
-        onChange={setPlayerFilter}
+        onChange={handleFilterChange}
         onRefresh={reload}
       />
 
@@ -204,6 +217,32 @@ export default function Dashboard({
 
           {players.length === 0 && (
             <p className="text-center text-muted mt-3">No players found</p>
+          )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && (
+        <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            disabled={(playerFilter.offset ?? 0) === 0}
+            onClick={() =>
+              goToPage(Math.max(0, (playerFilter.offset ?? 0) - PAGE_SIZE))
+            }
+          >
+            &laquo; Previous
+          </button>
+          <span className="text-muted small">
+            Page {Math.floor((playerFilter.offset ?? 0) / PAGE_SIZE) + 1}
+          </span>
+          {players.length >= PAGE_SIZE && (
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => goToPage((playerFilter.offset ?? 0) + PAGE_SIZE)}
+            >
+              Next &raquo;
+            </button>
           )}
         </div>
       )}
