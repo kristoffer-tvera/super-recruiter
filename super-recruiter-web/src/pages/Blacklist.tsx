@@ -85,7 +85,7 @@ export default function Blacklist() {
         </div>
       ) : (
         <div className="table-responsive">
-          <table className="table table-hover table-striped align-middle">
+          <table className="table table-hover table-striped table-dark align-middle">
             <thead>
               <tr>
                 <th>Character</th>

@@ -137,11 +137,11 @@ export default function Dashboard({
           </div>
         </div>
       ) : (
-        <div className="text-light">
+        <div>
           {/* Header row */}
           <div
             className="row fw-bold border-bottom py-3 small d-none d-md-flex align-items-center"
-            style={{ backgroundColor: "#1A1716", color: "#fff" }}
+            style={{ backgroundColor: "#1A1716" }}
           >
             <div className="col-3">Player</div>
             <div className="col-1">Class</div>
