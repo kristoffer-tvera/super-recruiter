@@ -32,6 +32,13 @@ export interface PlayerResponse {
   updatedAt: string;
 }
 
+export interface PlayerFilter {
+  status?: PlayerStatus;
+  playerClass?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface BlacklistEntry {
   id: number;
   characterName: string;

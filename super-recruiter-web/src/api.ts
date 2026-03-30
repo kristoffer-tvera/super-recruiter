@@ -2,21 +2,19 @@ import {
   type PlayerResponse,
   PlayerStatus,
   type BlacklistEntry,
+  type PlayerFilter,
 } from "./types";
 
 const BASE = "/api";
 
 export async function fetchPlayers(
-  status?: PlayerStatus,
-  className?: string,
-  limit?: number,
-  offset?: number,
+  filter?: PlayerFilter,
 ): Promise<PlayerResponse[]> {
   const params = new URLSearchParams();
-  if (status !== undefined) params.set("status", String(status));
-  if (className) params.set("playerClass", className);
-  if (limit) params.set("limit", String(limit));
-  if (offset) params.set("offset", String(offset));
+  if (filter?.status !== undefined) params.set("status", String(filter.status));
+  if (filter?.playerClass) params.set("playerClass", filter.playerClass);
+  if (filter?.limit) params.set("limit", String(filter.limit));
+  if (filter?.offset) params.set("offset", String(filter.offset));
 
   const res = await fetch(`${BASE}/players?${params}`);
   if (!res.ok) throw new Error("Failed to fetch players");
