@@ -2,6 +2,16 @@ using SuperRecruiter.Worker;
 using SuperRecruiter.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "SuperRecruiter.Worker";
+});
+
+builder.Logging.AddEventLog(settings =>
+{
+    settings.SourceName = "SuperRecruiter.Worker";
+    settings.LogName = "Application";
+});
 
 // External API clients
 builder.Services.AddHttpClient<GeminiService>();

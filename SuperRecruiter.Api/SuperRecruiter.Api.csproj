@@ -7,10 +7,10 @@
     <UserSecretsId>3030e87c-649d-4663-8461-57479e2465c9</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.1.66" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
-    <PackageReference Include="Npgsql" Version="10.0.1" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.12.46" />
+    <PackageReference Include="Dapper" Version="2.1.72" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.13.18" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SuperRecruiter.Shared\SuperRecruiter.Shared.csproj" />
