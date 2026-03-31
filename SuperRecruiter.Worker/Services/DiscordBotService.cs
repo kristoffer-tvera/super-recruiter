@@ -251,10 +251,25 @@ public class DiscordBotService : IHostedService
             var updated = await apiClient.UpdatePlayerStatusAsync(playerId, status.Value);
             if (updated != null)
             {
-                await component.RespondAsync(
-                    $"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.",
-                    ephemeral: false
-                );
+                var deleteMessage =
+                    status.Value == PlayerStatus.Declined
+                    || status.Value == PlayerStatus.Blacklisted;
+
+                if (deleteMessage)
+                {
+                    await component.RespondAsync(
+                        $"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.",
+                        ephemeral: true
+                    );
+                    await component.Message.DeleteAsync();
+                }
+                else
+                {
+                    await component.RespondAsync(
+                        $"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.",
+                        ephemeral: false
+                    );
+                }
 
                 _logger.LogInformation(
                     "Player {Id} status updated to {Status} by {User}",

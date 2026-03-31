@@ -48,17 +48,18 @@ public class PlayerCacheService(
 
         if (seenTask != null)
         {
-            _seenPlayers = seenTask.Result.ToDictionary(
-                sp => Key(sp.CharacterName, sp.Realm),
-                sp => sp.LastSeenAt
-            );
+            _seenPlayers = seenTask
+                .Result.GroupBy(sp => Key(sp.CharacterName, sp.Realm))
+                .ToDictionary(g => g.Key, g => g.Max(sp => sp.LastSeenAt));
             _seenPlayersLoaded = true;
             logger.LogInformation("Seen players cache loaded: {Count} entries", _seenPlayers.Count);
         }
 
         if (playersTask != null)
         {
-            _players = playersTask.Result.ToDictionary(p => Key(p.CharacterName, p.Realm), p => p);
+            _players = playersTask
+                .Result.GroupBy(p => Key(p.CharacterName, p.Realm))
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.UpdatedAt).First());
             logger.LogInformation("Players cache refreshed: {Count} entries", _players.Count);
         }
     }
