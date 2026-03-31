@@ -18,6 +18,9 @@ builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
     client.BaseAddress = new Uri(baseUrl);
 });
 
+// Player cache (refreshed each scan cycle)
+builder.Services.AddSingleton<PlayerCacheService>();
+
 // Discord bot (singleton — maintains gateway connection)
 builder.Services.AddSingleton<DiscordBotService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordBotService>());

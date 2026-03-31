@@ -12,6 +12,14 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
 {
     // --- Players ---
 
+    public async Task<List<PlayerResponse>> GetAllPlayersAsync()
+    {
+        var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>(
+            "/api/players?limit=10000&offset=0"
+        );
+        return response ?? [];
+    }
+
     public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("/api/players", request);
@@ -31,6 +39,14 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     }
 
     // --- Seen players ---
+
+    public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
+    {
+        var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>(
+            "/api/players/seen/all"
+        );
+        return response ?? [];
+    }
 
     public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
     {

@@ -11,6 +11,7 @@ public class ScraperWorker(
     RaiderIOService raiderIOService,
     WarcraftLogsService warcraftLogsService,
     SuperRecruiterApiClient apiClient,
+    PlayerCacheService playerCache,
     DiscordBotService discordBotService,
     IConfiguration configuration
 ) : BackgroundService
@@ -37,11 +38,17 @@ public class ScraperWorker(
             logger.LogInformation("Discord bot is ready");
         }
 
+        var cycleCount = 0;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
+
+                var refreshPlayers = cycleCount % 4 == 0;
+                await playerCache.RefreshAsync(refreshPlayers);
+                cycleCount++;
 
                 var playersFromWoWProgress =
                     await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
@@ -104,7 +111,17 @@ public class ScraperWorker(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var lastSeenAt = await apiClient.GetLastSeenAtAsync(player.CharacterName, player.Realm);
+            if (playerCache.IsBlacklisted(player.CharacterName, player.Realm))
+            {
+                logger.LogDebug(
+                    "Skipping blacklisted player: {Character}-{Realm}",
+                    player.CharacterName,
+                    player.Realm
+                );
+                continue;
+            }
+
+            var lastSeenAt = playerCache.GetLastSeenAt(player.CharacterName, player.Realm);
 
             if (lastSeenAt == null || player.LastUpdated > lastSeenAt.Value)
             {
@@ -119,7 +136,7 @@ public class ScraperWorker(
                     );
                 }
 
-                await apiClient.AddSeenPlayerAsync(
+                await playerCache.AddSeenPlayerAsync(
                     player.CharacterName,
                     player.Realm,
                     player.LastUpdated

@@ -84,6 +84,15 @@ public static class EndpointMapper
     private static void MapSeenPlayerEndpoints(IEndpointRouteBuilder api)
     {
         api.MapGet(
+            "/players/seen/all",
+            async (PlayerDatabaseService db) =>
+            {
+                var seenPlayers = await db.GetAllSeenPlayersAsync();
+                return Results.Ok(seenPlayers);
+            }
+        );
+
+        api.MapGet(
             "/players/seen",
             async (PlayerDatabaseService db, string name, string realm) =>
             {

@@ -261,6 +261,18 @@ public class PlayerDatabaseService
 
     // --- Seen Players ---
 
+    public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
+    {
+        using var connection = CreateConnection();
+
+        var sql =
+            @"SELECT character_name AS CharacterName, realm, last_seen_at AS LastSeenAt
+              FROM seen_players";
+
+        var players = await connection.QueryAsync<SeenPlayerResponse>(sql);
+        return players.ToList();
+    }
+
     public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
     {
         using var connection = CreateConnection();
