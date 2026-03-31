@@ -38,11 +38,3 @@ export interface PlayerFilter {
   limit?: number;
   offset?: number;
 }
-
-export interface BlacklistEntry {
-  id: number;
-  characterName: string;
-  realm: string;
-  reason?: string;
-  blacklistedAt: string;
-}

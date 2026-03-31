@@ -54,17 +54,5 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         response.EnsureSuccessStatusCode();
     }
 
-    // --- Blacklist ---
-
-    public async Task<bool> IsPlayerBlacklistedAsync(string characterName, string realm)
-    {
-        var response = await httpClient.GetFromJsonAsync<BlacklistCheckResponse>(
-            $"/api/blacklist/check?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}"
-        );
-        return response?.IsBlacklisted ?? false;
-    }
-
     private record LastSeenResponse(DateTime? LastSeenAt);
-
-    private record BlacklistCheckResponse(bool IsBlacklisted);
 }

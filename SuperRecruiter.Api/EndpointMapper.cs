@@ -10,7 +10,6 @@ public static class EndpointMapper
     {
         MapPlayerEndpoints(app);
         MapSeenPlayerEndpoints(app);
-        MapBlacklistEndpoints(app);
 
         return app;
     }
@@ -103,49 +102,6 @@ public static class EndpointMapper
                     request.LastUpdated
                 );
                 return Results.Ok();
-            }
-        );
-    }
-
-    private static void MapBlacklistEndpoints(IEndpointRouteBuilder api)
-    {
-        api.MapGet(
-            "/blacklist",
-            async (PlayerDatabaseService db) =>
-            {
-                var blacklisted = await db.GetBlacklistedPlayersAsync();
-                return Results.Ok(blacklisted);
-            }
-        );
-
-        api.MapGet(
-            "/blacklist/check",
-            async (PlayerDatabaseService db, string name, string realm) =>
-            {
-                var isBlacklisted = await db.IsPlayerBlacklistedAsync(name, realm);
-                return Results.Ok(new { isBlacklisted });
-            }
-        );
-
-        api.MapPost(
-            "/blacklist",
-            async (PlayerDatabaseService db, BlacklistRequest request) =>
-            {
-                await db.AddBlacklistedPlayerAsync(
-                    request.CharacterName,
-                    request.Realm,
-                    request.Reason
-                );
-                return Results.Created();
-            }
-        );
-
-        api.MapDelete(
-            "/blacklist/{id:int}",
-            async (PlayerDatabaseService db, int id) =>
-            {
-                await db.RemoveBlacklistedPlayerAsync(id);
-                return Results.NoContent();
             }
         );
     }

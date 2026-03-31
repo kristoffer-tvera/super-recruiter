@@ -14,24 +14,27 @@ export default function FilterBar({
 }: FilterBarProps) {
   return (
     <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
-      <button
-        className={`btn btn-sm ${filter.status === undefined ? "btn-primary" : "btn-outline-primary"}`}
-        onClick={() => onChange({ ...filter, status: undefined })}
+      <select
+        className="form-select form-select-sm"
+        style={{ width: "auto", minWidth: "120px" }}
+        value={filter.status ?? ""}
+        onChange={(e) =>
+          onChange({
+            ...filter,
+            status:
+              e.target.value === ""
+                ? undefined
+                : (Number(e.target.value) as PlayerStatus),
+          })
+        }
       >
-        All
-      </button>
-      {Object.entries(STATUS_LABELS).map(([key, label]) => {
-        const s = Number(key) as PlayerStatus;
-        return (
-          <button
-            key={key}
-            className={`btn btn-sm ${filter.status === s ? "btn-primary" : "btn-outline-primary"}`}
-            onClick={() => onChange({ ...filter, status: s })}
-          >
+        <option value="">All Statuses</option>
+        {Object.entries(STATUS_LABELS).map(([key, label]) => (
+          <option key={key} value={key}>
             {label}
-          </button>
-        );
-      })}
+          </option>
+        ))}
+      </select>
       <select
         className="form-select form-select-sm ms-2"
         style={{ width: "auto", minWidth: "120px" }}

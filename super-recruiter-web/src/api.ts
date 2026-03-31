@@ -1,9 +1,4 @@
-import {
-  type PlayerResponse,
-  PlayerStatus,
-  type BlacklistEntry,
-  type PlayerFilter,
-} from "./types";
+import { type PlayerResponse, PlayerStatus, type PlayerFilter } from "./types";
 
 const BASE = "/api";
 
@@ -46,28 +41,4 @@ export async function requestAiSummary(id: number): Promise<PlayerResponse> {
   });
   if (!res.ok) throw new Error("Failed to generate AI summary");
   return res.json();
-}
-
-export async function fetchBlacklist(): Promise<BlacklistEntry[]> {
-  const res = await fetch(`${BASE}/blacklist`);
-  if (!res.ok) throw new Error("Failed to fetch blacklist");
-  return res.json();
-}
-
-export async function addToBlacklist(
-  characterName: string,
-  realm: string,
-  reason?: string,
-): Promise<void> {
-  const res = await fetch(`${BASE}/blacklist`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ characterName, realm, reason }),
-  });
-  if (!res.ok) throw new Error("Failed to add to blacklist");
-}
-
-export async function removeFromBlacklist(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/blacklist/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to remove from blacklist");
 }

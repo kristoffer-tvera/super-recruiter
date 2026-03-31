@@ -104,21 +104,6 @@ public class ScraperWorker(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var isBlacklisted = await apiClient.IsPlayerBlacklistedAsync(
-                player.CharacterName,
-                player.Realm
-            );
-
-            if (isBlacklisted)
-            {
-                logger.LogDebug(
-                    "Skipping blacklisted player: {Character}-{Realm}",
-                    player.CharacterName,
-                    player.Realm
-                );
-                continue;
-            }
-
             var lastSeenAt = await apiClient.GetLastSeenAtAsync(player.CharacterName, player.Realm);
 
             if (lastSeenAt == null || player.LastUpdated > lastSeenAt.Value)

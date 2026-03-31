@@ -86,24 +86,8 @@ public class PlayerDatabaseService
             ON seen_players(last_seen_at);
         ";
 
-        var createBlacklistTable =
-            @"
-            CREATE TABLE IF NOT EXISTS blacklisted_players (
-                id SERIAL PRIMARY KEY,
-                character_name VARCHAR(255) NOT NULL,
-                realm VARCHAR(255) NOT NULL,
-                reason TEXT,
-                blacklisted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT unique_blacklisted_player UNIQUE (character_name, realm)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_blacklisted_players_lookup
-            ON blacklisted_players(character_name, realm);
-        ";
-
         await connection.ExecuteAsync(createPlayersTable);
         await connection.ExecuteAsync(createSeenPlayersTable);
-        await connection.ExecuteAsync(createBlacklistTable);
 
         _logger.LogInformation("Database tables initialized successfully");
     }
@@ -346,90 +330,4 @@ public class PlayerDatabaseService
             );
         }
     }
-
-    // --- Blacklist ---
-
-    public async Task<bool> IsPlayerBlacklistedAsync(string characterName, string realm)
-    {
-        using var connection = CreateConnection();
-
-        var sql =
-            @"
-            SELECT COUNT(1)
-            FROM blacklisted_players
-            WHERE LOWER(character_name) = LOWER(@CharacterName)
-            AND LOWER(realm) = LOWER(@Realm)";
-
-        var count = await connection.ExecuteScalarAsync<int>(
-            sql,
-            new { CharacterName = characterName, Realm = realm }
-        );
-        return count > 0;
-    }
-
-    public async Task<List<BlacklistResponse>> GetBlacklistedPlayersAsync()
-    {
-        using var connection = CreateConnection();
-
-        var sql =
-            @"SELECT id, character_name AS CharacterName, realm, reason,
-            blacklisted_at AS BlacklistedAt
-            FROM blacklisted_players ORDER BY blacklisted_at DESC";
-
-        var players = await connection.QueryAsync<BlacklistResponse>(sql);
-        return players.ToList();
-    }
-
-    public async Task AddBlacklistedPlayerAsync(
-        string characterName,
-        string realm,
-        string? reason = null
-    )
-    {
-        using var connection = CreateConnection();
-
-        var sql =
-            @"
-            INSERT INTO blacklisted_players (character_name, realm, reason, blacklisted_at)
-            VALUES (@CharacterName, @Realm, @Reason, @Now)
-            ON CONFLICT (character_name, realm)
-            DO UPDATE SET reason = @Reason, blacklisted_at = @Now";
-
-        await connection.ExecuteAsync(
-            sql,
-            new
-            {
-                CharacterName = characterName,
-                Realm = realm,
-                Reason = reason,
-                Now = DateTime.UtcNow,
-            }
-        );
-
-        _logger.LogInformation(
-            "Blacklisted player: {Character}-{Realm} (Reason: {Reason})",
-            characterName,
-            realm,
-            reason ?? "None"
-        );
-    }
-
-    public async Task RemoveBlacklistedPlayerAsync(int id)
-    {
-        using var connection = CreateConnection();
-
-        var sql = "DELETE FROM blacklisted_players WHERE id = @Id";
-        await connection.ExecuteAsync(sql, new { Id = id });
-
-        _logger.LogInformation("Removed blacklisted player with id: {Id}", id);
-    }
-}
-
-public class BlacklistResponse
-{
-    public int Id { get; set; }
-    public string CharacterName { get; set; } = string.Empty;
-    public string Realm { get; set; } = string.Empty;
-    public string? Reason { get; set; }
-    public DateTime BlacklistedAt { get; set; }
 }
