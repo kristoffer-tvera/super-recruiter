@@ -19,11 +19,52 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var configuredApiKey = builder.Configuration["ApiKey"];
+
 // Initialize database
 var dbService = app.Services.GetRequiredService<PlayerDatabaseService>();
 await dbService.InitializeDatabaseAsync();
 
 app.UseCors();
+
+app.Use(
+    async (context, next) =>
+    {
+        var path = context.Request.Path;
+        var isApiPath =
+            path.StartsWithSegments("/players") || path.StartsWithSegments("/api/players");
+        if (!isApiPath)
+        {
+            await next();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(configuredApiKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsJsonAsync(
+                new { error = "API key is not configured on server" }
+            );
+            return;
+        }
+
+        if (!context.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { error = "Missing X-Api-Key header" });
+            return;
+        }
+
+        if (!string.Equals(providedApiKey, configuredApiKey, StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { error = "Invalid API key" });
+            return;
+        }
+
+        await next();
+    }
+);
 
 app.MapOpenApi();
 app.MapScalarApiReference();

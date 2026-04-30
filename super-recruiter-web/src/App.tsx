@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { getStoredApiKey, setStoredApiKey } from "./api";
 import Dashboard from "./pages/Dashboard";
 import "./App.css";
 
@@ -11,6 +12,22 @@ function getInitialRoute(): { playerId?: number } {
 
 function App() {
   const initial = useMemo(() => getInitialRoute(), []);
+  const [hasApiKey, setHasApiKey] = useState(() => Boolean(getStoredApiKey()));
+
+  function handleApiKeyPrompt(): void {
+    const currentApiKey = getStoredApiKey();
+    const input = window.prompt(
+      "Enter API key (leave blank to clear):",
+      currentApiKey,
+    );
+
+    if (input === null) {
+      return;
+    }
+
+    setStoredApiKey(input);
+    setHasApiKey(Boolean(getStoredApiKey()));
+  }
 
   return (
     <div>
@@ -22,6 +39,15 @@ function App() {
       <div className="container-fluid pt-3">
         <Dashboard initialPlayerId={initial.playerId} />
       </div>
+      <button
+        type="button"
+        className="api-key-lock"
+        onClick={handleApiKeyPrompt}
+        title={hasApiKey ? "API key set" : "Set API key"}
+        aria-label={hasApiKey ? "API key set" : "Set API key"}
+      >
+        {hasApiKey ? "🔓" : "🔒"}
+      </button>
     </div>
   );
 }

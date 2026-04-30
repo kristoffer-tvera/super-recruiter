@@ -218,6 +218,20 @@ public class DiscordBotService : IHostedService
         if (interaction is not SocketMessageComponent component)
             return;
 
+        var officerRoleId = (ulong)420722779432943616;
+
+        if (
+            component.User is not SocketGuildUser user
+            || !user.Roles.Any(r => r.Id == officerRoleId)
+        )
+        {
+            await component.RespondAsync(
+                "You don't have permission to perform this action.",
+                ephemeral: true
+            );
+            return;
+        }
+
         // Parse custom ID: "status:{action}:{playerId}"
         var parts = component.Data.CustomId.Split(':');
         if (parts.Length != 3 || parts[0] != "status")
