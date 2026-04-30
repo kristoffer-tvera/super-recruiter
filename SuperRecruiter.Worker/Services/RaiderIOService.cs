@@ -177,9 +177,14 @@ public class RaiderIOService(
         return players;
     }
 
-    private string? GetLanguages(LfgRecruitment data)
+    private string? GetLanguages(LfgRecruitment? data)
     {
-        var languageCodes = data.GuildRaids.Profile.Languages;
+        var languageCodes = data?.GuildRaids?.Profile?.Languages;
+        if (languageCodes == null)
+        {
+            return "N/A";
+        }
+
         var languageNames = languageCodes
             ?.Select(code =>
                 code switch

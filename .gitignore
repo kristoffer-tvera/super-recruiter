@@ -2,3 +2,4 @@
 */obj/*
 appsettings.Development.json
 requests.http
+*.lscache

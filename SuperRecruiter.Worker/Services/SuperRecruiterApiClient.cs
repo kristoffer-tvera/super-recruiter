@@ -20,6 +20,14 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return response ?? [];
     }
 
+    public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
+    {
+        var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>(
+            "/api/players/cache"
+        );
+        return response ?? [];
+    }
+
     public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("/api/players", request);
@@ -66,6 +74,24 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
                 Realm = realm,
                 LastUpdated = lastUpdated,
             }
+        );
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task BulkAddSeenPlayersAsync(List<SeenPlayerRequest> requests)
+    {
+        if (requests.Count == 0)
+            return;
+
+        var response = await httpClient.PostAsJsonAsync("/api/players/seen/bulk", requests);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task CleanupSeenPlayersAsync(int daysToKeep = 30)
+    {
+        var response = await httpClient.PostAsync(
+            $"/api/players/seen/cleanup?daysToKeep={daysToKeep}",
+            null
         );
         response.EnsureSuccessStatusCode();
     }

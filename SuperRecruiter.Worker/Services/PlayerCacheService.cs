@@ -5,9 +5,9 @@ namespace SuperRecruiter.Worker.Services;
 
 /// <summary>
 /// In-memory cache for player and seen-player data.
-/// Primed once per scan cycle from the API, then used for fast lookups
-/// during filtering. Writes (AddSeenPlayer, AddOrUpdatePlayer) update
-/// both the cache and the API so the cache stays consistent.
+/// Primed once per scan cycle from the API using lightweight cache endpoint,
+/// then used for fast lookups during filtering. Seen player batches are collected
+/// and flushed in bulk to minimize HTTP calls and database load.
 /// </summary>
 public class PlayerCacheService(
     SuperRecruiterApiClient apiClient,
@@ -16,8 +16,11 @@ public class PlayerCacheService(
 {
     // Key: "charactername-realm" (lowered)
     private Dictionary<string, DateTime> _seenPlayers = new();
-    private Dictionary<string, PlayerResponse> _players = new();
+    private Dictionary<string, PlayerCacheResponse> _players = new();
     private bool _seenPlayersLoaded;
+
+    // Batch for seen players to be flushed
+    private List<SeenPlayerRequest> _seenPlayerBatch = new();
 
     private static string Key(string name, string realm) =>
         $"{name.ToLowerInvariant()}-{realm.ToLowerInvariant()}";
@@ -37,10 +40,10 @@ public class PlayerCacheService(
             tasks.Add(seenTask);
         }
 
-        Task<List<PlayerResponse>>? playersTask = null;
+        Task<List<PlayerCacheResponse>>? playersTask = null;
         if (refreshPlayers)
         {
-            playersTask = apiClient.GetAllPlayersAsync();
+            playersTask = apiClient.GetPlayersCacheAsync();
             tasks.Add(playersTask);
         }
 
@@ -78,11 +81,41 @@ public class PlayerCacheService(
     }
 
     /// <summary>
-    /// Mark a player as seen — updates both the local cache and the API.
+    /// Queue a player to be marked as seen. Batches multiple updates and flushes them
+    /// in bulk via FlushSeenPlayerBatchAsync() to minimize HTTP calls.
     /// </summary>
-    public async Task AddSeenPlayerAsync(string characterName, string realm, DateTime lastUpdated)
+    public void QueueSeenPlayer(string characterName, string realm, DateTime lastUpdated)
     {
         _seenPlayers[Key(characterName, realm)] = lastUpdated;
-        await apiClient.AddSeenPlayerAsync(characterName, realm, lastUpdated);
+        _seenPlayerBatch.Add(
+            new SeenPlayerRequest
+            {
+                CharacterName = characterName,
+                Realm = realm,
+                LastUpdated = lastUpdated,
+            }
+        );
+    }
+
+    /// <summary>
+    /// Flush all queued seen players to the API in a single bulk operation.
+    /// Should be called at the end of each scan cycle.
+    /// </summary>
+    public async Task FlushSeenPlayerBatchAsync()
+    {
+        if (_seenPlayerBatch.Count == 0)
+            return;
+
+        try
+        {
+            await apiClient.BulkAddSeenPlayersAsync(_seenPlayerBatch);
+            logger.LogInformation("Flushed {Count} seen players to API", _seenPlayerBatch.Count);
+            _seenPlayerBatch.Clear();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to flush seen player batch");
+            throw;
+        }
     }
 }

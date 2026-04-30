@@ -79,6 +79,15 @@ public static class EndpointMapper
                 return updated is not null ? Results.Ok(updated) : Results.NotFound();
             }
         );
+
+        api.MapGet(
+            "/players/cache",
+            async (PlayerDatabaseService db) =>
+            {
+                var players = await db.GetPlayersCacheAsync();
+                return Results.Ok(players);
+            }
+        );
     }
 
     private static void MapSeenPlayerEndpoints(IEndpointRouteBuilder api)
@@ -110,6 +119,27 @@ public static class EndpointMapper
                     request.Realm,
                     request.LastUpdated
                 );
+                return Results.Ok();
+            }
+        );
+
+        api.MapPost(
+            "/players/seen/bulk",
+            async (PlayerDatabaseService db, List<SeenPlayerRequest> requests) =>
+            {
+                var batch = requests
+                    .Select(r => (r.CharacterName, r.Realm, r.LastUpdated))
+                    .ToList();
+                await db.BulkAddSeenPlayersAsync(batch);
+                return Results.Ok();
+            }
+        );
+
+        api.MapPost(
+            "/players/seen/cleanup",
+            async (PlayerDatabaseService db, int? daysToKeep) =>
+            {
+                await db.CleanupOldSeenPlayersAsync(daysToKeep ?? 30);
                 return Results.Ok();
             }
         );

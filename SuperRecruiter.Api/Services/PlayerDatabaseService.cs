@@ -342,4 +342,55 @@ public class PlayerDatabaseService
             );
         }
     }
+
+    /// <summary>
+    /// Bulk insert/update seen players in a single database operation.
+    /// Reduces HTTP calls and database round-trips significantly.
+    /// </summary>
+    public async Task BulkAddSeenPlayersAsync(
+        List<(string CharacterName, string Realm, DateTime LastUpdated)> seenPlayers
+    )
+    {
+        if (seenPlayers.Count == 0)
+            return;
+
+        using var connection = CreateConnection();
+
+        // Use UNNEST to insert multiple rows efficiently
+        var sql =
+            @"
+            INSERT INTO seen_players (character_name, realm, first_seen_at, last_seen_at)
+            SELECT * FROM UNNEST(@CharacterNames, @Realms, @LastUpdateds, @LastUpdateds)
+                AS t(character_name, realm, first_seen_at, last_seen_at)
+            ON CONFLICT (character_name, realm)
+            DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at";
+
+        await connection.ExecuteAsync(
+            sql,
+            new
+            {
+                CharacterNames = seenPlayers.Select(x => x.CharacterName).ToArray(),
+                Realms = seenPlayers.Select(x => x.Realm).ToArray(),
+                LastUpdateds = seenPlayers.Select(x => x.LastUpdated).ToArray(),
+            }
+        );
+
+        _logger.LogInformation("Bulk added/updated {Count} seen players", seenPlayers.Count);
+    }
+
+    /// <summary>
+    /// Get lightweight player data for cache synchronization.
+    /// Returns only essential fields to minimize data transfer.
+    /// </summary>
+    public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
+    {
+        using var connection = CreateConnection();
+
+        var sql =
+            @"SELECT id, character_name AS CharacterName, realm, status, updated_at AS UpdatedAt
+              FROM players";
+
+        var players = await connection.QueryAsync<PlayerCacheResponse>(sql);
+        return players.ToList();
+    }
 }

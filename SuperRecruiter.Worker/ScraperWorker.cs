@@ -79,13 +79,22 @@ public class ScraperWorker(
                         foreach (var player in newPlayers)
                         {
                             await ProcessPlayerAsync(player, stoppingToken);
-                            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                         }
                     }
                     else
                     {
                         logger.LogInformation("No new players found");
                     }
+                }
+
+                // Flush all queued seen players in a single bulk operation
+                await playerCache.FlushSeenPlayerBatchAsync();
+
+                // Run cleanup every 12 cycles (every 6 hours at 30-min intervals)
+                if (cycleCount % 12 == 0)
+                {
+                    logger.LogInformation("Running seen player cleanup");
+                    await apiClient.CleanupSeenPlayersAsync(30);
                 }
             }
             catch (Exception ex)
@@ -136,11 +145,7 @@ public class ScraperWorker(
                     );
                 }
 
-                await playerCache.AddSeenPlayerAsync(
-                    player.CharacterName,
-                    player.Realm,
-                    player.LastUpdated
-                );
+                playerCache.QueueSeenPlayer(player.CharacterName, player.Realm, player.LastUpdated);
                 filteredPlayers.Add(player);
             }
         }
@@ -215,7 +220,7 @@ public class ScraperWorker(
         var warcraftLogsSummary =
             wclSummaryParts.Count > 0 ? string.Join("\n\n", wclSummaryParts) : null;
 
-        // 6. POST enriched player to API
+        // 6. Build create request
         var createRequest = new CreatePlayerRequest
         {
             CharacterName = detailedPlayer.CharacterName,
@@ -234,22 +239,20 @@ public class ScraperWorker(
             WarcraftLogsSummary = warcraftLogsSummary,
         };
 
-        var apiPlayer = await apiClient.CreatePlayerAsync(createRequest);
-
-        // 7. Send Discord message with buttons
+        // 7. Send Discord message with buttons and get message ID first
         var messageId = await discordBotService.SendPlayerMessageAsync(
             detailedPlayer,
             raiderIoData,
-            apiPlayer.Id
+            0 // Placeholder ID, we'll get the real one after insert
         );
 
-        // 8. Update the API record with the Discord message ID
+        // 8. Include Discord message ID in the single POST to API
         if (messageId.HasValue)
         {
-            // Re-POST with discord info (the upsert will update)
             createRequest.DiscordMessageId = messageId.Value;
-            await apiClient.CreatePlayerAsync(createRequest);
         }
+
+        var apiPlayer = await apiClient.CreatePlayerAsync(createRequest);
 
         logger.LogInformation(
             "Successfully processed player {Character}-{Realm}",
