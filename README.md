@@ -1,65 +1,132 @@
 # Super Recruiter
 
-A .NET Worker Service that monitors WoWProgress for players looking for guilds and sends detailed notifications to Discord with RaiderIO and WarcraftLogs data.
+Super Recruiter is a three-project .NET 10 solution plus a React frontend for discovering LFG players, enriching their profile data, storing records in PostgreSQL, and reviewing/managing them in a web UI.
 
-## Features
+## Architecture
 
-- Scrapes WoWProgress using PuppeteerSharp (bypasses Cloudflare protection)
-- Fetches player data from RaiderIO and WarcraftLogs APIs
-- PostgreSQL database for player tracking and blacklist
-- Discord webhook notifications with rich player stats
-- Tracks player re-listings based on update timestamps
+- `SuperRecruiter.Api`: ASP.NET Core minimal API + Dapper + PostgreSQL
+- `SuperRecruiter.Worker`: background scraper/enricher + Discord bot notifications
+- `SuperRecruiter.Shared`: DTOs/models shared by API and Worker
+- `super-recruiter-web`: React 19 + TypeScript + Vite frontend
 
-## Quick Start
+## What It Does
 
-1. Configure `appsettings.Development.json`:
+- Scrapes WoWProgress and Raider.IO for LFG players
+- Enriches player data with Raider.IO and WarcraftLogs summaries
+- Stores and upserts enriched player records in PostgreSQL
+- Tracks seen players and relisting timestamps
+- Sends Discord messages for new/updated players
+- Provides a web dashboard for status management and AI summary generation
 
-   ```json
-   {
-     "ConnectionStrings": {
-       "PostgreSQL": "your-postgres-connection-string"
-     },
-     "Discord": {
-       "WebhookUrl": "your-discord-webhook-url"
-     },
-     "RaiderIO": {
-       "ApiKey": "your-raiderio-key"
-     },
-     "WarcraftLogs": {
-       "ClientId": "your-client-id",
-       "ClientSecret": "your-client-secret"
-     }
-   }
-   ```
+## Security Model
 
-2. Run:
-   ```bash
-   dotnet run
-   ```
-
-## Database
-
-Tables are created automatically on startup:
-
-- `seen_players` - Tracks players and their last update time
-- `blacklisted_players` - Players to ignore
-
-Add to blacklist:
-
-```sql
-INSERT INTO blacklisted_players (character_name, realm, reason)
-VALUES ('PlayerName', 'RealmName', 'Optional reason');
-```
+- API routes under `/players` require `X-Api-Key`
+- API key is configured in API config as `ApiKey`
+- Worker sends key from `SuperRecruiterApi:ApiKey`
+- Frontend stores key in browser localStorage via the lock button in the bottom-right corner
 
 ## Configuration
 
-- `PollingIntervalMinutes` - Scan interval (default: 10)
+Configure local development values in each project's `appsettings.Development.json`.
 
-## Project Structure
+### API (`SuperRecruiter.Api`)
 
+Required:
+
+```json
+{
+  "ConnectionStrings": {
+    "PostgreSQL": "Host=...;Database=...;Username=...;Password=..."
+  },
+  "ApiKey": "your-api-key"
+}
 ```
-├── Models/           # Data models (Player, RaidProgression, etc.)
-├── Services/         # WoWProgress scraper, API clients, Discord webhook
-├── Converter/        # JSON converters for API responses
-└── Worker.cs         # Main polling loop
+
+Optional:
+
+- `Gemini:Url`
+- `Gemini:ApiKey`
+
+### Worker (`SuperRecruiter.Worker`)
+
+Required:
+
+```json
+{
+  "PollingIntervalMinutes": 30,
+  "SuperRecruiterApi": {
+    "BaseUrl": "http://localhost:5100",
+    "ApiKey": "your-api-key"
+  },
+  "Discord": {
+    "BotToken": "...",
+    "ChannelId": "..."
+  },
+  "RaiderIO": {
+    "ApiKey": "..."
+  },
+  "WarcraftLogs": {
+    "ClientId": "...",
+    "ClientSecret": "..."
+  },
+  "FlareSolverrUrl": "http://localhost:8191/v1"
+}
 ```
+
+## Running Locally
+
+Run each service in its own terminal.
+
+### 1) API
+
+```bash
+cd SuperRecruiter.Api
+dotnet run
+```
+
+The API docs are available at:
+
+- `http://localhost:5100/scalar/v1`
+
+### 2) Worker
+
+```bash
+cd SuperRecruiter.Worker
+dotnet run
+```
+
+### 3) Frontend
+
+```bash
+cd super-recruiter-web
+npm install
+npm run dev
+```
+
+On first load, click the lock icon in the bottom-right corner and paste your API key.
+
+## Database Notes
+
+- Database schema is initialized by `PlayerDatabaseService.InitializeDatabaseAsync()` on API startup
+- Main tables:
+  - `players`
+  - `seen_players`
+- Player status is stored on `players.status` (including blacklisted state)
+
+## Useful Commands
+
+```bash
+# Build all projects
+dotnet build
+
+# Frontend lint
+cd super-recruiter-web && npm run lint
+
+# Frontend production build
+cd super-recruiter-web && npm run build
+```
+
+## Important
+
+- Do not commit secrets to source control.
+- Keep API keys/tokens in development config or user secrets.
