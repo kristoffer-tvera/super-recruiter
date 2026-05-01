@@ -44,58 +44,7 @@ public class ScraperWorker(
         {
             try
             {
-                logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
-
-                var refreshPlayers = cycleCount % 4 == 0;
-                await playerCache.RefreshAsync(refreshPlayers);
-                cycleCount++;
-
-                var playersFromWoWProgress =
-                    await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
-
-                var playersFromRaiderIo = await raiderIOService.GetLfgPlayers(stoppingToken);
-
-                var players = playersFromWoWProgress
-                    .Concat(playersFromRaiderIo)
-                    .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
-                    .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
-                    .ToList();
-
-                if (players.Count == 0)
-                {
-                    logger.LogInformation("No players found in the scan");
-                }
-                else
-                {
-                    var newPlayers = await FilterPlayersAsync(players, stoppingToken);
-                    if (newPlayers?.Count > 0)
-                    {
-                        logger.LogInformation(
-                            "Found {NewCount} new player(s) out of {TotalCount} total",
-                            newPlayers.Count,
-                            players.Count
-                        );
-
-                        foreach (var player in newPlayers)
-                        {
-                            await ProcessPlayerAsync(player, stoppingToken);
-                        }
-                    }
-                    else
-                    {
-                        logger.LogInformation("No new players found");
-                    }
-                }
-
-                // Flush all queued seen players in a single bulk operation
-                await playerCache.FlushSeenPlayerBatchAsync();
-
-                // Run cleanup every 12 cycles (every 6 hours at 30-min intervals)
-                if (cycleCount % 12 == 0)
-                {
-                    logger.LogInformation("Running seen player cleanup");
-                    await apiClient.CleanupSeenPlayersAsync(30);
-                }
+                cycleCount = await RunScanCycleAsync(cycleCount, stoppingToken);
             }
             catch (Exception ex)
             {
@@ -107,6 +56,74 @@ public class ScraperWorker(
         }
 
         logger.LogInformation("Scraper worker stopping");
+    }
+
+    private async Task<int> RunScanCycleAsync(int cycleCount, CancellationToken stoppingToken)
+    {
+        logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
+
+        var refreshPlayers = cycleCount % 4 == 0;
+        await playerCache.RefreshAsync(refreshPlayers);
+
+        var nextCycleCount = cycleCount + 1;
+        var players = await GetMergedPlayersAsync(stoppingToken);
+        await ProcessDiscoveredPlayersAsync(players, stoppingToken);
+
+        // Flush all queued seen players in a single bulk operation
+        await playerCache.FlushSeenPlayerBatchAsync();
+
+        // Run cleanup every 12 cycles (every 6 hours at 30-min intervals)
+        if (nextCycleCount % 12 == 0)
+        {
+            logger.LogInformation("Running seen player cleanup");
+            await apiClient.CleanupSeenPlayersAsync(30);
+        }
+
+        return nextCycleCount;
+    }
+
+    private async Task<List<Player>> GetMergedPlayersAsync(CancellationToken stoppingToken)
+    {
+        var playersFromWoWProgress = await wowProgressService.GetLookingForGuildPlayersAsync(
+            stoppingToken
+        );
+        var playersFromRaiderIo = await raiderIOService.GetLfgPlayers(stoppingToken);
+
+        return playersFromWoWProgress
+            .Concat(playersFromRaiderIo)
+            .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
+            .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
+            .ToList();
+    }
+
+    private async Task ProcessDiscoveredPlayersAsync(
+        List<Player> players,
+        CancellationToken stoppingToken
+    )
+    {
+        if (players.Count == 0)
+        {
+            logger.LogInformation("No players found in the scan");
+            return;
+        }
+
+        var newPlayers = await FilterPlayersAsync(players, stoppingToken);
+        if (newPlayers?.Count > 0)
+        {
+            logger.LogInformation(
+                "Found {NewCount} new player(s) out of {TotalCount} total",
+                newPlayers.Count,
+                players.Count
+            );
+
+            foreach (var player in newPlayers)
+            {
+                await ProcessPlayerAsync(player, stoppingToken);
+            }
+            return;
+        }
+
+        logger.LogInformation("No new players found");
     }
 
     public async Task<List<Player>?> FilterPlayersAsync(
@@ -154,90 +171,22 @@ public class ScraperWorker(
 
     public async Task ProcessPlayerAsync(Player player, CancellationToken cancellationToken)
     {
-        // 1. Enrich from RaiderIO
-        var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
-            "eu",
-            player.RealmSlug,
-            player.CharacterName,
-            cancellationToken
-        );
-
-        // 2. Enrich from WarcraftLogs
-        var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
+        var (detailedPlayer, raiderIoData, warcraftLogsData) = await EnrichPlayerAsync(
             player,
             cancellationToken
         );
 
-        // 3. Enrich from WoWProgress detail page
-        Player detailedPlayer;
-        if (player.Source == LfgSource.WoWProgress)
+        if (ShouldSkipForLanguage(player))
         {
-            detailedPlayer = await wowProgressService.GetPlayerDetailsAsync(
-                player,
-                cancellationToken
-            );
-        }
-        else
-        {
-            // For RaiderIO-sourced players, we may already have most of the details we need from the RaiderIO profile, so we can skip the WoWProgress detail page enrichment to reduce load and avoid potential issues with WoWProgress blocking requests.
-            detailedPlayer = player;
+            return;
         }
 
-        // 4. Language filter
-        if (!string.IsNullOrWhiteSpace(player.Languages))
-        {
-            if (!player.Languages.ToLower().Contains("eng"))
-            {
-                logger.LogInformation(
-                    "Player {Character}-{Realm} does not speak English. Skipping.",
-                    player.CharacterName,
-                    player.Realm
-                );
-                return;
-            }
-        }
-
-        // 5. Build markdown summaries from enrichment data
-        var warcraftLogsZoneRankings = warcraftLogsData
-            ?.Data
-            ?.CharacterData
-            ?.Character
-            ?.ZoneRankings;
-
-        var raiderIoSummaryParts = new List<string>();
-        raiderIoSummaryParts.Add(
-            PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoData)
+        var (raiderIoSummary, warcraftLogsSummary) = BuildSummaries(raiderIoData, warcraftLogsData);
+        var createRequest = BuildCreatePlayerRequest(
+            detailedPlayer,
+            raiderIoSummary,
+            warcraftLogsSummary
         );
-        raiderIoSummaryParts.Add(PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData));
-        var raiderIoSummary = string.Join("\n\n", raiderIoSummaryParts);
-
-        var wclSummaryParts = new List<string>();
-        if (warcraftLogsZoneRankings != null)
-        {
-            wclSummaryParts.Add(PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings));
-            wclSummaryParts.Add(PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings));
-        }
-        var warcraftLogsSummary =
-            wclSummaryParts.Count > 0 ? string.Join("\n\n", wclSummaryParts) : null;
-
-        // 6. Build create request
-        var createRequest = new CreatePlayerRequest
-        {
-            CharacterName = detailedPlayer.CharacterName,
-            Class = detailedPlayer.Class,
-            Realm = detailedPlayer.Realm,
-            RealmSlug = detailedPlayer.RealmSlug,
-            ItemLevel = detailedPlayer.ItemLevel,
-            LastUpdated = detailedPlayer.LastUpdated,
-            CharacterUrl = detailedPlayer.CharacterUrl,
-            BattleTag = detailedPlayer.BattleTag,
-            Bio = detailedPlayer.Bio,
-            Languages = detailedPlayer.Languages,
-            SpecsPlaying = detailedPlayer.SpecsPlaying,
-            GuildHistory = detailedPlayer.GuildHistory.ToList(),
-            RaiderIoSummary = raiderIoSummary,
-            WarcraftLogsSummary = warcraftLogsSummary,
-        };
 
         // 7. Send Discord message with buttons and get message ID first
         var messageId = await discordBotService.SendPlayerMessageAsync(
@@ -259,5 +208,111 @@ public class ScraperWorker(
             detailedPlayer.CharacterName,
             detailedPlayer.Realm
         );
+    }
+
+    private async Task<(
+        Player DetailedPlayer,
+        RaiderIOProfile? RaiderIoData,
+        WarcraftLogsCharacterResponse? WarcraftLogsData
+    )> EnrichPlayerAsync(Player player, CancellationToken cancellationToken)
+    {
+        var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
+            "eu",
+            player.RealmSlug,
+            player.CharacterName,
+            cancellationToken
+        );
+
+        var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
+            player,
+            cancellationToken
+        );
+
+        var detailedPlayer =
+            player.Source == LfgSource.WoWProgress
+                ? await wowProgressService.GetPlayerDetailsAsync(player, cancellationToken)
+                : player;
+
+        return (detailedPlayer, raiderIoData, warcraftLogsData);
+    }
+
+    private bool ShouldSkipForLanguage(Player player)
+    {
+        if (string.IsNullOrWhiteSpace(player.Languages))
+        {
+            return false;
+        }
+
+        if (player.Languages.ToLower().Contains("eng"))
+        {
+            return false;
+        }
+
+        logger.LogInformation(
+            "Player {Character}-{Realm} does not speak English. Skipping.",
+            player.CharacterName,
+            player.Realm
+        );
+        return true;
+    }
+
+    private static (string RaiderIoSummary, string? WarcraftLogsSummary) BuildSummaries(
+        RaiderIOProfile? raiderIoData,
+        WarcraftLogsCharacterResponse? warcraftLogsData
+    )
+    {
+        var raiderIoSummary = string.Join(
+            "\n\n",
+            [
+                PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoData),
+                PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData),
+            ]
+        );
+
+        var warcraftLogsZoneRankings = warcraftLogsData
+            ?.Data
+            ?.CharacterData
+            ?.Character
+            ?.ZoneRankings;
+
+        if (warcraftLogsZoneRankings == null)
+        {
+            return (raiderIoSummary, null);
+        }
+
+        var warcraftLogsSummary = string.Join(
+            "\n\n",
+            [
+                PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings),
+                PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings),
+            ]
+        );
+
+        return (raiderIoSummary, warcraftLogsSummary);
+    }
+
+    private static CreatePlayerRequest BuildCreatePlayerRequest(
+        Player detailedPlayer,
+        string raiderIoSummary,
+        string? warcraftLogsSummary
+    )
+    {
+        return new CreatePlayerRequest
+        {
+            CharacterName = detailedPlayer.CharacterName,
+            Class = detailedPlayer.Class,
+            Realm = detailedPlayer.Realm,
+            RealmSlug = detailedPlayer.RealmSlug,
+            ItemLevel = detailedPlayer.ItemLevel,
+            LastUpdated = detailedPlayer.LastUpdated,
+            CharacterUrl = detailedPlayer.CharacterUrl,
+            BattleTag = detailedPlayer.BattleTag,
+            Bio = detailedPlayer.Bio,
+            Languages = detailedPlayer.Languages,
+            SpecsPlaying = detailedPlayer.SpecsPlaying,
+            GuildHistory = detailedPlayer.GuildHistory.ToList(),
+            RaiderIoSummary = raiderIoSummary,
+            WarcraftLogsSummary = warcraftLogsSummary,
+        };
     }
 }

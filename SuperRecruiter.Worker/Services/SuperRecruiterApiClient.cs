@@ -31,7 +31,16 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("/api/players", request);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            logger.LogError(
+                "CreatePlayer failed with status code {StatusCode}: {ResponseContent}",
+                response.StatusCode,
+                responseContent
+            );
+            throw new Exception($"Failed to create player: {responseContent}");
+        }
         return (await response.Content.ReadFromJsonAsync<PlayerResponse>())!;
     }
 
@@ -75,7 +84,16 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
                 LastUpdated = lastUpdated,
             }
         );
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            logger.LogError(
+                "AddSeenPlayer failed with status code {StatusCode}: {ResponseContent}",
+                response.StatusCode,
+                responseContent
+            );
+            throw new Exception($"Failed to add seen player: {responseContent}");
+        }
     }
 
     public async Task BulkAddSeenPlayersAsync(List<SeenPlayerRequest> requests)
@@ -84,7 +102,17 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
             return;
 
         var response = await httpClient.PostAsJsonAsync("/api/players/seen/bulk", requests);
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            logger.LogError(
+                "Bulk add of seen players failed with status code {StatusCode}: {ResponseContent}",
+                response.StatusCode,
+                responseContent
+            );
+            throw new Exception($"Failed to bulk add seen players: {responseContent}");
+        }
     }
 
     public async Task CleanupSeenPlayersAsync(int daysToKeep = 30)
@@ -93,7 +121,16 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
             $"/api/players/seen/cleanup?daysToKeep={daysToKeep}",
             null
         );
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            logger.LogError(
+                "CleanupSeenPlayers failed with status code {StatusCode}: {ResponseContent}",
+                response.StatusCode,
+                responseContent
+            );
+            throw new Exception($"Failed to cleanup seen players: {responseContent}");
+        }
     }
 
     private record LastSeenResponse(DateTime? LastSeenAt);
