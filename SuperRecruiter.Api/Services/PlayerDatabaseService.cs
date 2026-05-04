@@ -307,7 +307,7 @@ public class PlayerDatabaseService
             {
                 CharacterName = characterName,
                 Realm = realm,
-                LastUpdated = lastUpdated,
+                LastUpdated = DateTime.SpecifyKind(lastUpdated, DateTimeKind.Unspecified),
             }
         );
 
@@ -371,7 +371,9 @@ public class PlayerDatabaseService
             {
                 CharacterNames = seenPlayers.Select(x => x.CharacterName).ToArray(),
                 Realms = seenPlayers.Select(x => x.Realm).ToArray(),
-                LastUpdateds = seenPlayers.Select(x => x.LastUpdated).ToArray(),
+                LastUpdateds = seenPlayers
+                    .Select(x => DateTime.SpecifyKind(x.LastUpdated, DateTimeKind.Unspecified))
+                    .ToArray(),
             }
         );
 
