@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using SuperRecruiter.Shared.Models;
 
 namespace SuperRecruiter.Api.Services;
@@ -17,6 +16,13 @@ public class GeminiService(
     /// </summary>
     public async Task<string> GetGeminiTakeForPlayer(Shared.DTOs.PlayerResponse player)
     {
+        logger.LogInformation(
+            "Building Gemini prompt for player {PlayerName} on realm {Realm}, using url: {Url}",
+            player.CharacterName,
+            player.Realm,
+            _url
+        );
+
         var textBlocks = new List<string>
         {
             $"Character: {player.CharacterName}",

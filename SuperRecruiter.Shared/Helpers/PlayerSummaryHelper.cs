@@ -51,6 +51,12 @@ public static class PlayerSummaryHelper
         return $"{header}\n- {progression}";
     }
 
+    public static string GetCurrentExpansionProgressForDiscord(RaiderIOProfile? profile)
+    {
+        var lastTier = profile?.Raid_progression_summary?.LastOrDefault() ?? "No raid data";
+        return lastTier;
+    }
+
     public static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
     {
         var header = "## __Ahead of the Curve / Cutting Edge__";

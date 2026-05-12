@@ -7,14 +7,15 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "SuperRecruiter.Worker";
 });
 
+#pragma warning disable CA1416 // Validate platform compatibility
 builder.Logging.AddEventLog(settings =>
 {
     settings.SourceName = "SuperRecruiter.Worker";
     settings.LogName = "Application";
 });
+#pragma warning restore CA1416 // Validate platform compatibility
 
 // External API clients
-builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient<WowProgressService>();
 builder.Services.AddHttpClient<RaiderIOService>();
 builder.Services.AddHttpClient<WarcraftLogsService>();

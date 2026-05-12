@@ -143,9 +143,6 @@ public class LfgData
     [JsonPropertyName("id")]
     public int Id { get; set; }
 
-    [JsonPropertyName("expansionId")]
-    public int ExpansionId { get; set; }
-
     [JsonPropertyName("wowCharacterId")]
     public int WowCharacterId { get; set; }
 
@@ -167,9 +164,6 @@ public class LfgData
     [JsonPropertyName("recruitment")]
     public LfgRecruitment Recruitment { get; set; }
 
-    [JsonPropertyName("thumbnailUrl")]
-    public string ThumbnailUrl { get; set; }
-
     [JsonPropertyName("realm")]
     public LfgRealm Realm { get; set; }
 
@@ -178,9 +172,6 @@ public class LfgData
 
     [JsonPropertyName("spec")]
     public LfgSpec Spec { get; set; }
-
-    [JsonPropertyName("stream")]
-    public object Stream { get; set; }
 }
 
 public class LfgSpec

@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace SuperRecruiter.Shared.DTOs;
 
 public class CreatePlayerRequest

@@ -1,6 +1,5 @@
 using Discord;
 using Discord.WebSocket;
-using SuperRecruiter.Shared.DTOs;
 using SuperRecruiter.Shared.Helpers;
 using SuperRecruiter.Shared.Models;
 
@@ -153,10 +152,14 @@ public class DiscordBotService : IHostedService
             $"[WCL](https://www.warcraftlogs.com/character/eu/{player.RealmSlug}/{player.CharacterName})",
         };
 
+        var currentTierExp = PlayerSummaryHelper.GetCurrentExpansionProgressForDiscord(
+            raiderIoProfile
+        );
+
         // Build the embed
         var embed = new EmbedBuilder()
             .WithTitle(
-                $"{player.CharacterName}-{player.Realm} | {player.Class} | {player.ItemLevel}"
+                $"{player.CharacterName}-{player.Realm} | {player.Class} | {player.ItemLevel} | {currentTierExp}"
             )
             .WithColor(new Color((uint)PlayerSummaryHelper.ClassColorFromClassName(player.Class)))
             .WithThumbnailUrl(thumbnail)

@@ -15,7 +15,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<List<PlayerResponse>> GetAllPlayersAsync()
     {
         var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>(
-            "/players?limit=10000&offset=0"
+            "players?limit=10000&offset=0"
         );
         return response ?? [];
     }
@@ -23,14 +23,14 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
     {
         var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>(
-            "/players/cache"
+            "players/cache"
         );
         return response ?? [];
     }
 
     public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
     {
-        var response = await httpClient.PostAsJsonAsync("/players", request);
+        var response = await httpClient.PostAsJsonAsync("players", request);
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -47,7 +47,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<PlayerResponse?> UpdatePlayerStatusAsync(int playerId, PlayerStatus status)
     {
         var response = await httpClient.PutAsJsonAsync(
-            $"/players/{playerId}/status",
+            $"players/{playerId}/status",
             new UpdatePlayerStatusRequest { Status = status }
         );
         if (!response.IsSuccessStatusCode)
@@ -60,7 +60,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
     {
         var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>(
-            "/players/seen/all"
+            "players/seen/all"
         );
         return response ?? [];
     }
@@ -68,7 +68,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
     {
         var response = await httpClient.GetFromJsonAsync<LastSeenResponse>(
-            $"/players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}"
+            $"players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}"
         );
         return response?.LastSeenAt;
     }
@@ -76,7 +76,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task AddSeenPlayerAsync(string characterName, string realm, DateTime lastUpdated)
     {
         var response = await httpClient.PostAsJsonAsync(
-            "/players/seen",
+            "players/seen",
             new SeenPlayerRequest
             {
                 CharacterName = characterName,
@@ -101,7 +101,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         if (requests.Count == 0)
             return;
 
-        var response = await httpClient.PostAsJsonAsync("/players/seen/bulk", requests);
+        var response = await httpClient.PostAsJsonAsync("players/seen/bulk", requests);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -118,7 +118,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
     public async Task CleanupSeenPlayersAsync(int daysToKeep = 30)
     {
         var response = await httpClient.PostAsync(
-            $"/players/seen/cleanup?daysToKeep={daysToKeep}",
+            $"players/seen/cleanup?daysToKeep={daysToKeep}",
             null
         );
         if (!response.IsSuccessStatusCode)
