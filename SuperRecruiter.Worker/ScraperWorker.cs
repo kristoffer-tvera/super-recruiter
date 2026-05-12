@@ -171,6 +171,22 @@ public class ScraperWorker(
 
     public async Task ProcessPlayerAsync(Player player, CancellationToken cancellationToken)
     {
+        var hasEmptyNameOrRealm =
+            string.IsNullOrWhiteSpace(player.CharacterName)
+            || string.IsNullOrWhiteSpace(player.Realm);
+        var nameIsNotOnlyLetters =
+            player.CharacterName != null && player.CharacterName.Any(c => !char.IsLetter(c));
+
+        if (hasEmptyNameOrRealm || nameIsNotOnlyLetters)
+        {
+            logger.LogInformation(
+                "Skipping player with invalid name or realm: '{CharacterName}' on '{Realm}'",
+                player.CharacterName,
+                player.Realm
+            );
+            return;
+        }
+
         var (detailedPlayer, raiderIoData, warcraftLogsData) = await EnrichPlayerAsync(
             player,
             cancellationToken
