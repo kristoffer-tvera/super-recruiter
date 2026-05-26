@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <Target Name="CopyDevSettingsOnPublish" AfterTargets="Publish">
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\appsettings.Development.json" DestinationFiles="$(PublishDir)appsettings.json" OverwriteReadOnlyFiles="true" />
-    <Message Importance="high" Text="Copied appsettings.Development.json → $(PublishDir)appsettings.json" />
+    <Copy Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')" SourceFiles="$(MSBuildProjectDirectory)\appsettings.Development.json" DestinationFiles="$(PublishDir)appsettings.json" OverwriteReadOnlyFiles="true" />
+    <Message Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')" Importance="high" Text="Copied appsettings.Development.json → $(PublishDir)appsettings.json" />
   </Target>
 </Project>
