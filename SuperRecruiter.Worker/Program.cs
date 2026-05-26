@@ -2,18 +2,9 @@ using SuperRecruiter.Worker;
 using SuperRecruiter.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddWindowsService(options =>
-{
-    options.ServiceName = "SuperRecruiter.Worker";
-});
 
-#pragma warning disable CA1416 // Validate platform compatibility
-builder.Logging.AddEventLog(settings =>
-{
-    settings.SourceName = "SuperRecruiter.Worker";
-    settings.LogName = "Application";
-});
-#pragma warning restore CA1416 // Validate platform compatibility
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 // External API clients
 builder.Services.AddHttpClient<WowProgressService>();
