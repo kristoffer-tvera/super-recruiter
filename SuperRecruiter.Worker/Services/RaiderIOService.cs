@@ -34,12 +34,10 @@ public class RaiderIOService(
 
             var tierSlugs = new[]
             {
+                "tier-mn-1",
                 "manaforge-omega",
                 "liberation-of-undermine",
                 "nerubar-palace",
-                "amirdrassil-the-dreams-hope",
-                "aberrus-the-shadowed-crucible",
-                "vault-of-the-incarnates",
             };
 
             var queryStringParameters = new Dictionary<string, string>

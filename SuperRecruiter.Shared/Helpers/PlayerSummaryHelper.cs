@@ -54,7 +54,9 @@ public static class PlayerSummaryHelper
     public static string GetCurrentExpansionProgressForDiscord(RaiderIOProfile? profile)
     {
         var lastTier = profile?.Raid_progression_summary?.LastOrDefault() ?? "No raid data";
-        return lastTier;
+        var lastPart = lastTier.Split('|').LastOrDefault()?.Trim() ?? "No raid data";
+
+        return lastPart;
     }
 
     public static string GetCuttingEdgeSummary(RaiderIOProfile? profile)
