@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   fetchPlayers,
-  fetchPlayer,
+  fetchPlayerByCharacterAndRealm,
   updatePlayerStatus,
   requestAiSummary,
 } from "../api";
@@ -18,9 +18,11 @@ import PlayerDetailModal from "../components/PlayerDetailModal";
 const PAGE_SIZE = 20;
 
 export default function Dashboard({
-  initialPlayerId,
+  initialRealmSlug,
+  initialCharacterName,
 }: {
-  initialPlayerId?: number;
+  initialRealmSlug?: string;
+  initialCharacterName?: string;
 }) {
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
   const [playerFilter, setPlayerFilter] = useState<PlayerFilter>({
@@ -52,7 +54,11 @@ export default function Dashboard({
   // Open a player modal and update the URL
   const openPlayer = useCallback((player: PlayerResponse) => {
     setSelectedPlayer(player);
-    window.history.pushState(null, "", `/players/${player.id}`);
+    window.history.pushState(
+      null,
+      "",
+      `/${player.realmSlug}/${encodeURIComponent(player.characterName)}`,
+    );
   }, []);
 
   const closeModal = useCallback(() => {
@@ -63,14 +69,21 @@ export default function Dashboard({
   // Handle browser back/forward
   useEffect(() => {
     const onPopState = () => {
-      const match = window.location.pathname.match(/^\/players\/(\d+)$/);
+      const match = window.location.pathname.match(/^\/([a-z0-9-]+)\/([^/]+)$/);
       if (match) {
-        const id = Number(match[1]);
-        const existing = players.find((p) => p.id === id);
+        const realmSlug = match[1];
+        const characterName = decodeURIComponent(match[2]);
+        const existing = players.find(
+          (p) =>
+            p.realmSlug.toLowerCase() === realmSlug.toLowerCase() &&
+            p.characterName.toLowerCase() === characterName.toLowerCase(),
+        );
         if (existing) {
           setSelectedPlayer(existing);
         } else {
-          fetchPlayer(id).then(setSelectedPlayer).catch(console.error);
+          fetchPlayerByCharacterAndRealm(realmSlug, characterName)
+            .then(setSelectedPlayer)
+            .catch(console.error);
         }
       } else {
         setSelectedPlayer(null);
@@ -82,10 +95,12 @@ export default function Dashboard({
 
   // On first load, check if URL has a player ID to deep-link into
   useEffect(() => {
-    if (initialPlayerId) {
-      fetchPlayer(initialPlayerId).then(setSelectedPlayer).catch(console.error);
+    if (initialRealmSlug && initialCharacterName) {
+      fetchPlayerByCharacterAndRealm(initialRealmSlug, initialCharacterName)
+        .then(setSelectedPlayer)
+        .catch(console.error);
     }
-  }, [initialPlayerId]);
+  }, [initialRealmSlug, initialCharacterName]);
 
   useEffect(() => {
     fetchPlayers(playerFilter)

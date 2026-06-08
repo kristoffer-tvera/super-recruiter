@@ -45,6 +45,15 @@ public static class EndpointMapper
             }
         );
 
+        api.MapGet(
+            "/players/lookup/{realmSlug}/{characterName}",
+            async (PlayerDatabaseService db, string realmSlug, string characterName) =>
+            {
+                var player = await db.GetPlayerByCharacterAndRealmAsync(characterName, realmSlug);
+                return player is not null ? Results.Ok(player) : Results.NotFound();
+            }
+        );
+
         api.MapPost(
             "/players",
             async (PlayerDatabaseService db, CreatePlayerRequest request) =>
@@ -59,6 +68,24 @@ public static class EndpointMapper
             async (PlayerDatabaseService db, int id, UpdatePlayerStatusRequest request) =>
             {
                 var player = await db.UpdatePlayerStatusAsync(id, request.Status);
+                return player is not null ? Results.Ok(player) : Results.NotFound();
+            }
+        );
+
+        api.MapPut(
+            "/players/{realmSlug}/{characterName}/status",
+            async (
+                PlayerDatabaseService db,
+                string realmSlug,
+                string characterName,
+                UpdatePlayerStatusRequest request
+            ) =>
+            {
+                var player = await db.UpdatePlayerStatusByCharacterAndRealmAsync(
+                    characterName,
+                    realmSlug,
+                    request.Status
+                );
                 return player is not null ? Results.Ok(player) : Results.NotFound();
             }
         );

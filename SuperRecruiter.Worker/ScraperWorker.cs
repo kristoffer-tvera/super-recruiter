@@ -204,14 +204,13 @@ public class ScraperWorker(
             warcraftLogsSummary
         );
 
-        // 7. Send Discord message with buttons and get message ID first
+        // 7. Send Discord message with buttons (URL is now deterministic - no placeholder needed)
         var messageId = await discordBotService.SendPlayerMessageAsync(
             detailedPlayer,
-            raiderIoData,
-            0 // Placeholder ID, we'll get the real one after insert
+            raiderIoData
         );
 
-        // 8. Include Discord message ID in the single POST to API
+        // 8. Include Discord message ID in the POST to API
         if (messageId.HasValue)
         {
             createRequest.DiscordMessageId = messageId.Value;

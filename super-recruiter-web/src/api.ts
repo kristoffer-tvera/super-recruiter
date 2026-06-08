@@ -50,6 +50,20 @@ export async function fetchPlayer(id: number): Promise<PlayerResponse> {
   return res.json();
 }
 
+export async function fetchPlayerByCharacterAndRealm(
+  realmSlug: string,
+  characterName: string,
+): Promise<PlayerResponse> {
+  const res = await fetch(
+    `${BASE}/players/lookup/${encodeURIComponent(realmSlug)}/${encodeURIComponent(characterName)}`,
+    {
+      headers: withApiKey(),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to fetch player");
+  return res.json();
+}
+
 export async function updatePlayerStatus(
   id: number,
   status: PlayerStatus,

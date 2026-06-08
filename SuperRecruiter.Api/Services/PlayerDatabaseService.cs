@@ -259,6 +259,58 @@ public class PlayerDatabaseService
         );
     }
 
+    public async Task<PlayerResponse?> GetPlayerByCharacterAndRealmAsync(
+        string characterName,
+        string realmSlug
+    )
+    {
+        using var connection = CreateConnection();
+
+        var sql =
+            $@"{BasePlayerSelectQuery}
+            WHERE LOWER(character_name) = LOWER(@CharacterName)
+            AND LOWER(realm_slug) = LOWER(@RealmSlug)";
+
+        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
+            sql,
+            new { CharacterName = characterName, RealmSlug = realmSlug }
+        );
+    }
+
+    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAndRealmAsync(
+        string characterName,
+        string realmSlug,
+        PlayerStatus status
+    )
+    {
+        using var connection = CreateConnection();
+
+        var sql =
+            @"
+            UPDATE players
+            SET status = @Status, updated_at = @Now
+            WHERE LOWER(character_name) = LOWER(@CharacterName)
+            AND LOWER(realm_slug) = LOWER(@RealmSlug)
+            RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
+                item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
+                battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
+                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
+                status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
+
+        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
+            sql,
+            new
+            {
+                CharacterName = characterName,
+                RealmSlug = realmSlug,
+                Status = (int)status,
+                Now = DateTime.UtcNow,
+            }
+        );
+    }
+
     // --- Seen Players ---
 
     public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
