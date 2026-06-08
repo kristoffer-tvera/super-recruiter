@@ -109,11 +109,21 @@ export default function Dashboard({
       .finally(() => setLoading(false));
   }, [playerFilter]);
 
-  const handleStatusChange = async (id: number, status: PlayerStatus) => {
+  const handleStatusChange = async (
+    realmSlug: string,
+    characterName: string,
+    status: PlayerStatus,
+  ) => {
     try {
-      const updated = await updatePlayerStatus(id, status);
-      setPlayers((prev) => prev.map((p) => (p.id === id ? updated : p)));
-      if (selectedPlayer?.id === id) setSelectedPlayer(updated);
+      const updated = await updatePlayerStatus(
+        realmSlug,
+        characterName,
+        status,
+      );
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p)),
+      );
+      if (selectedPlayer?.id === updated.id) setSelectedPlayer(updated);
     } catch (e) {
       console.error(e);
     }
@@ -215,7 +225,8 @@ export default function Dashboard({
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) =>
                     handleStatusChange(
-                      p.id,
+                      p.realmSlug,
+                      p.characterName,
                       Number(e.target.value) as PlayerStatus,
                     )
                   }

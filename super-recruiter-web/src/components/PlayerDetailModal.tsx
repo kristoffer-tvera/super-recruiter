@@ -6,7 +6,11 @@ interface PlayerDetailModalProps {
   player: PlayerResponse;
   aiLoading: boolean;
   onClose: () => void;
-  onStatusChange: (id: number, status: PlayerStatus) => void;
+  onStatusChange: (
+    realmSlug: string,
+    characterName: string,
+    status: PlayerStatus,
+  ) => void;
   onRequestAi: () => void;
 }
 
@@ -176,7 +180,8 @@ export default function PlayerDetailModal({
                 value={player.status}
                 onChange={(e) =>
                   onStatusChange(
-                    player.id,
+                    player.realmSlug,
+                    player.characterName,
                     Number(e.target.value) as PlayerStatus,
                   )
                 }
