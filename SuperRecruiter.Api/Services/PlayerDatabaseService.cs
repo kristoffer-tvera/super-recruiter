@@ -126,7 +126,7 @@ public class PlayerDatabaseService
         }
 
         /**where**/
-        sql += " ORDER BY created_at DESC LIMIT @Limit OFFSET @Offset";
+        sql += " ORDER BY updated_at DESC LIMIT @Limit OFFSET @Offset";
 
         var players = await connection.QueryAsync<PlayerResponse>(
             sql,

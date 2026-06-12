@@ -173,7 +173,7 @@ export default function Dashboard({
             <div className="col-2">Realm</div>
             <div className="col-1 text-end">iLvl</div>
             <div className="col-1">Status</div>
-            <div className="col-2">Found</div>
+            <div className="col-2">Updated</div>
             <div className="col-2">Actions</div>
           </div>
 
@@ -209,7 +209,7 @@ export default function Dashboard({
                 </span>
               </div>
               <div className="col-md-2 small">
-                {new Date(p.createdAt).toLocaleDateString(undefined, {
+                {new Date(p.updatedAt).toLocaleDateString(undefined, {
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
