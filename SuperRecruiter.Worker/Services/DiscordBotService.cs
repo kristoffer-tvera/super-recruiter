@@ -119,8 +119,7 @@ public class DiscordBotService : IHostedService
     /// </summary>
     public async Task<ulong?> SendPlayerMessageAsync(
         Player player,
-        RaiderIOProfile? raiderIoProfile,
-        int apiPlayerId
+        RaiderIOProfile? raiderIoProfile
     )
     {
         if (_client.ConnectionState != ConnectionState.Connected)
@@ -176,14 +175,30 @@ public class DiscordBotService : IHostedService
 
         // Build action row with buttons
         var components = new ComponentBuilder()
-            .WithButton("Interested", $"status:interested:{apiPlayerId}", ButtonStyle.Success)
-            .WithButton("Contacted", $"status:contacted:{apiPlayerId}", ButtonStyle.Primary)
-            .WithButton("Declined", $"status:declined:{apiPlayerId}", ButtonStyle.Secondary)
-            .WithButton("Blacklist", $"status:blacklist:{apiPlayerId}", ButtonStyle.Danger)
+            .WithButton(
+                "Interested",
+                $"status:interested:{player.RealmSlug}:{player.CharacterName}",
+                ButtonStyle.Success
+            )
+            .WithButton(
+                "Contacted",
+                $"status:contacted:{player.RealmSlug}:{player.CharacterName}",
+                ButtonStyle.Primary
+            )
+            .WithButton(
+                "Declined",
+                $"status:declined:{player.RealmSlug}:{player.CharacterName}",
+                ButtonStyle.Secondary
+            )
+            .WithButton(
+                "Blacklist",
+                $"status:blacklist:{player.RealmSlug}:{player.CharacterName}",
+                ButtonStyle.Danger
+            )
             .WithButton(
                 "Open",
                 style: ButtonStyle.Link,
-                url: $"{_frontendBaseUrl}/players/{apiPlayerId}"
+                url: $"{_frontendBaseUrl}/{player.RealmSlug}/{player.CharacterName}"
             )
             .Build();
 
@@ -235,14 +250,14 @@ public class DiscordBotService : IHostedService
             return;
         }
 
-        // Parse custom ID: "status:{action}:{playerId}"
+        // Parse custom ID: "status:{action}:{realmSlug}:{characterName}"
         var parts = component.Data.CustomId.Split(':');
-        if (parts.Length != 3 || parts[0] != "status")
+        if (parts.Length != 4 || parts[0] != "status")
             return;
 
         var action = parts[1];
-        if (!int.TryParse(parts[2], out var playerId))
-            return;
+        var realmSlug = parts[2];
+        var characterName = parts[3];
 
         var status = action switch
         {
@@ -265,7 +280,11 @@ public class DiscordBotService : IHostedService
             using var scope = _serviceProvider.CreateScope();
             var apiClient = scope.ServiceProvider.GetRequiredService<SuperRecruiterApiClient>();
 
-            var updated = await apiClient.UpdatePlayerStatusAsync(playerId, status.Value);
+            var updated = await apiClient.UpdatePlayerStatusByCharacterAsync(
+                realmSlug,
+                characterName,
+                status.Value
+            );
             if (updated != null)
             {
                 var deleteMessage =
@@ -289,8 +308,9 @@ public class DiscordBotService : IHostedService
                 }
 
                 _logger.LogInformation(
-                    "Player {Id} status updated to {Status} by {User}",
-                    playerId,
+                    "Player {Character}-{Realm} status updated to {Status} by {User}",
+                    characterName,
+                    realmSlug,
                     status.Value,
                     component.User.Username
                 );
@@ -302,7 +322,12 @@ public class DiscordBotService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling Discord interaction for player {Id}", playerId);
+            _logger.LogError(
+                ex,
+                "Error handling Discord interaction for player {Character}-{Realm}",
+                characterName,
+                realmSlug
+            );
             await component.RespondAsync(
                 "An error occurred processing your action.",
                 ephemeral: true

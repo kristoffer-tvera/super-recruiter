@@ -55,6 +55,21 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return await response.Content.ReadFromJsonAsync<PlayerResponse>();
     }
 
+    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAsync(
+        string realmSlug,
+        string characterName,
+        PlayerStatus status
+    )
+    {
+        var response = await httpClient.PutAsJsonAsync(
+            $"players/{Uri.EscapeDataString(realmSlug)}/{Uri.EscapeDataString(characterName)}/status",
+            new UpdatePlayerStatusRequest { Status = status }
+        );
+        if (!response.IsSuccessStatusCode)
+            return null;
+        return await response.Content.ReadFromJsonAsync<PlayerResponse>();
+    }
+
     // --- Seen players ---
 
     public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()

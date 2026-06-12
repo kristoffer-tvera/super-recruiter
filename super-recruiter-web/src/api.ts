@@ -50,15 +50,33 @@ export async function fetchPlayer(id: number): Promise<PlayerResponse> {
   return res.json();
 }
 
+export async function fetchPlayerByCharacterAndRealm(
+  realmSlug: string,
+  characterName: string,
+): Promise<PlayerResponse> {
+  const res = await fetch(
+    `${BASE}/players/lookup/${encodeURIComponent(realmSlug)}/${encodeURIComponent(characterName)}`,
+    {
+      headers: withApiKey(),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to fetch player");
+  return res.json();
+}
+
 export async function updatePlayerStatus(
-  id: number,
+  realmSlug: string,
+  characterName: string,
   status: PlayerStatus,
 ): Promise<PlayerResponse> {
-  const res = await fetch(`${BASE}/players/${id}/status`, {
-    method: "PUT",
-    headers: withApiKey({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ status }),
-  });
+  const res = await fetch(
+    `${BASE}/players/${encodeURIComponent(realmSlug)}/${encodeURIComponent(characterName)}/status`,
+    {
+      method: "PUT",
+      headers: withApiKey({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ status }),
+    },
+  );
   if (!res.ok) throw new Error("Failed to update player status");
   return res.json();
 }

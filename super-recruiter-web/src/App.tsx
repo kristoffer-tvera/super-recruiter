@@ -3,10 +3,14 @@ import { getStoredApiKey, setStoredApiKey } from "./api";
 import Dashboard from "./pages/Dashboard";
 import "./App.css";
 
-function getInitialRoute(): { playerId?: number } {
+function getInitialRoute(): {
+  realmSlug?: string;
+  characterName?: string;
+} {
   const path = window.location.pathname;
-  const match = path.match(/^\/players\/(\d+)$/);
-  if (match) return { playerId: Number(match[1]) };
+  // Match /{realmSlug}/{characterName} format
+  const match = path.match(/^\/([a-z0-9-]+)\/([^/]+)$/);
+  if (match) return { realmSlug: match[1], characterName: match[2] };
   return {};
 }
 
@@ -37,7 +41,10 @@ function App() {
         </div>
       </nav>
       <div className="container-fluid pt-3">
-        <Dashboard initialPlayerId={initial.playerId} />
+        <Dashboard
+          initialRealmSlug={initial.realmSlug}
+          initialCharacterName={initial.characterName}
+        />
       </div>
       <button
         type="button"
