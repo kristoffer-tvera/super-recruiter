@@ -72,8 +72,8 @@ public class ScraperWorker(
         // Flush all queued seen players in a single bulk operation
         await playerCache.FlushSeenPlayerBatchAsync();
 
-        // Run cleanup every 12 cycles (every 6 hours at 30-min intervals)
-        if (nextCycleCount % 12 == 0)
+        // Run cleanup every 6 cycles (every 6 hours at 30-min intervals)
+        if (nextCycleCount % 6 == 0)
         {
             logger.LogInformation("Running seen player cleanup");
             await apiClient.CleanupSeenPlayersAsync(30);
