@@ -5,7 +5,7 @@
 SSH into your Unraid server and run:
 
 ```bash
-docker build -t super-recruiter-worker https://github.com/kristoffer-tvera/super-recruiter.git#main
+docker build -t super-recruiter-worker https://github.com/kristoffer-tvera/super-recruiter.git#master
 ```
 
 ## 2. Add the Container in Unraid

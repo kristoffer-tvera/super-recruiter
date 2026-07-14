@@ -86,8 +86,18 @@ public class PlayerDatabaseService
             ON seen_players(last_seen_at);
         ";
 
+        var createConfigTable =
+            @"
+            CREATE TABLE IF NOT EXISTS config (
+                key VARCHAR(100) NOT NULL,
+                value VARCHAR(255) NOT NULL,
+                CONSTRAINT unique_config_entry UNIQUE (key, value)
+            );
+        ";
+
         await connection.ExecuteAsync(createPlayersTable);
         await connection.ExecuteAsync(createSeenPlayersTable);
+        await connection.ExecuteAsync(createConfigTable);
 
         _logger.LogInformation("Database tables initialized successfully");
     }
@@ -446,5 +456,64 @@ public class PlayerDatabaseService
 
         var players = await connection.QueryAsync<PlayerCacheResponse>(sql);
         return players.ToList();
+    }
+
+    // --- Admin Config ---
+
+    private record ConfigEntry(string Key, string Value);
+
+    public async Task<AdminConfigResponse> GetAdminConfigAsync()
+    {
+        using var connection = CreateConnection();
+        var rows = await connection.QueryAsync<ConfigEntry>("SELECT key, value FROM config");
+
+        var response = new AdminConfigResponse();
+        foreach (var row in rows)
+        {
+            if (row.Key == "bosskills" && int.TryParse(row.Value, out var kills))
+                response.BossKills = kills;
+            else if (row.Key == "acceptedclass")
+                response.AcceptedClasses.Add(row.Value);
+        }
+        return response;
+    }
+
+    public async Task<AdminConfigResponse> UpdateAdminConfigAsync(UpdateAdminConfigRequest request)
+    {
+        using var connection = CreateConnection();
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        await connection.ExecuteAsync(
+            "DELETE FROM config WHERE key = 'bosskills'",
+            transaction: transaction
+        );
+        await connection.ExecuteAsync(
+            "INSERT INTO config (key, value) VALUES ('bosskills', @Value)",
+            new { Value = request.BossKills.ToString() },
+            transaction: transaction
+        );
+
+        await connection.ExecuteAsync(
+            "DELETE FROM config WHERE key = 'acceptedclass'",
+            transaction: transaction
+        );
+
+        foreach (var cls in request.AcceptedClasses)
+        {
+            await connection.ExecuteAsync(
+                "INSERT INTO config (key, value) VALUES ('acceptedclass', @Value)",
+                new { Value = cls.ToLower() },
+                transaction: transaction
+            );
+        }
+
+        transaction.Commit();
+
+        return new AdminConfigResponse
+        {
+            BossKills = request.BossKills,
+            AcceptedClasses = [.. request.AcceptedClasses.Select(c => c.ToLower())],
+        };
     }
 }

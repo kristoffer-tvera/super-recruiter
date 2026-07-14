@@ -10,6 +10,7 @@ public static class EndpointMapper
     {
         MapPlayerEndpoints(app);
         MapSeenPlayerEndpoints(app);
+        MapAdminConfigEndpoints(app);
 
         return app;
     }
@@ -168,6 +169,27 @@ public static class EndpointMapper
             {
                 await db.CleanupOldSeenPlayersAsync(daysToKeep ?? 30);
                 return Results.Ok();
+            }
+        );
+    }
+
+    private static void MapAdminConfigEndpoints(IEndpointRouteBuilder api)
+    {
+        api.MapGet(
+            "/config",
+            async (PlayerDatabaseService db) =>
+            {
+                var config = await db.GetAdminConfigAsync();
+                return Results.Ok(config);
+            }
+        );
+
+        api.MapPut(
+            "/config",
+            async (PlayerDatabaseService db, UpdateAdminConfigRequest request) =>
+            {
+                var config = await db.UpdateAdminConfigAsync(request);
+                return Results.Ok(config);
             }
         );
     }

@@ -38,3 +38,8 @@ export interface PlayerFilter {
   limit?: number;
   offset?: number;
 }
+
+export interface AdminConfig {
+  bossKills: number;
+  acceptedClasses: string[];
+}

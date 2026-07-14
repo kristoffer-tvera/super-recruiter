@@ -1,4 +1,9 @@
-import { type PlayerResponse, PlayerStatus, type PlayerFilter } from "./types";
+import {
+  type PlayerResponse,
+  PlayerStatus,
+  type PlayerFilter,
+  type AdminConfig,
+} from "./types";
 
 const BASE = "/api";
 export const API_KEY_STORAGE_KEY = "superRecruiterApiKey";
@@ -87,5 +92,25 @@ export async function requestAiSummary(id: number): Promise<PlayerResponse> {
     headers: withApiKey(),
   });
   if (!res.ok) throw new Error("Failed to generate AI summary");
+  return res.json();
+}
+
+export async function fetchAdminConfig(): Promise<AdminConfig> {
+  const res = await fetch(`${BASE}/config`, {
+    headers: withApiKey(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch admin config");
+  return res.json();
+}
+
+export async function updateAdminConfig(
+  config: AdminConfig,
+): Promise<AdminConfig> {
+  const res = await fetch(`${BASE}/config`, {
+    method: "PUT",
+    headers: withApiKey({ "Content-Type": "application/json" }),
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Failed to save admin config");
   return res.json();
 }
