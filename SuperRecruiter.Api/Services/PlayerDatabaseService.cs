@@ -108,37 +108,64 @@ public class PlayerDatabaseService
             created_at AS CreatedAt, updated_at AS UpdatedAt
             FROM players";
 
-    public async Task<List<PlayerResponse>> GetPlayersAsync(PlayerStatus? status = null, string? playerClass = null, int limit = 50, int offset = 0)
+    public async Task<List<PlayerResponse>> GetPlayersAsync(
+        List<PlayerStatus>? statuses = null,
+        List<string>? playerClasses = null,
+        double? minItemLevel = null,
+        int? minMythicKills = null,
+        int limit = 50,
+        int offset = 0
+    )
     {
         using var connection = CreateConnection();
 
         var sql = BasePlayerSelectQuery;
+        var conditions = new List<string>();
 
-        if (status.HasValue || !string.IsNullOrEmpty(playerClass))
+        if (statuses != null && statuses.Count > 0)
         {
-            sql += " WHERE";
-            var conditions = new List<string>();
-            if (status.HasValue)
-                conditions.Add(" status = @Status");
-            if (!string.IsNullOrEmpty(playerClass))
-                conditions.Add(" LOWER(class) = LOWER(@PlayerClass)");
-            sql += string.Join(" AND", conditions);
+            var statusValues = string.Join(",", statuses.Select(s => (int)s));
+            conditions.Add($" status IN ({statusValues})");
         }
 
-        /**where**/
+        if (playerClasses != null && playerClasses.Count > 0)
+        {
+            var classPlaceholders = string.Join(",", playerClasses.Select((_, i) => $"@Class{i}"));
+            conditions.Add($" LOWER(class) IN ({classPlaceholders})");
+        }
+
+        if (minItemLevel.HasValue)
+        {
+            conditions.Add(" item_level >= @MinItemLevel");
+        }
+
+        if (minMythicKills.HasValue)
+        {
+            conditions.Add(" current_tier_mythic_kill_count >= @MinMythicKills");
+        }
+
+        if (conditions.Count > 0)
+        {
+            sql += " WHERE" + string.Join(" AND", conditions);
+        }
+
         sql += " ORDER BY updated_at DESC LIMIT @Limit OFFSET @Offset";
 
-        var players = await connection.QueryAsync<PlayerResponse>(
-            sql,
-            new
-            {
-                Status = (int?)status,
-                PlayerClass = playerClass,
-                Limit = limit,
-                Offset = offset,
-            }
-        );
+        var parameters = new DynamicParameters();
+        parameters.Add("@MinItemLevel", minItemLevel);
+        parameters.Add("@MinMythicKills", minMythicKills);
+        parameters.Add("@Limit", limit);
+        parameters.Add("@Offset", offset);
 
+        if (playerClasses != null)
+        {
+            for (int i = 0; i < playerClasses.Count; i++)
+            {
+                parameters.Add($"@Class{i}", playerClasses[i].ToLower());
+            }
+        }
+
+        var players = await connection.QueryAsync<PlayerResponse>(sql, parameters);
         return players.ToList();
     }
 

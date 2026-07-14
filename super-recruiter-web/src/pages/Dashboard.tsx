@@ -1,289 +1,260 @@
 import { useEffect, useState, useCallback } from "react";
-import {
-  fetchPlayers,
-  fetchPlayerByCharacterAndRealm,
-  updatePlayerStatus,
-  requestAiSummary,
-} from "../api";
+import { fetchPlayers, fetchPlayerByCharacterAndRealm, updatePlayerStatus, requestAiSummary } from "../api";
 import { type PlayerResponse, PlayerStatus, type PlayerFilter } from "../types";
-import {
-  STATUS_LABELS,
-  STATUS_BADGE,
-  CLASS_COLORS,
-  CLASS_ICONS,
-} from "../constants";
+import { STATUS_LABELS, STATUS_BADGE, CLASS_COLORS, CLASS_ICONS } from "../constants";
 import FilterBar from "../components/FilterBar";
 import PlayerDetailModal from "../components/PlayerDetailModal";
 
 const PAGE_SIZE = 20;
 
-export default function Dashboard({
-  initialRealmSlug,
-  initialCharacterName,
-}: {
-  initialRealmSlug?: string;
-  initialCharacterName?: string;
-}) {
-  const [players, setPlayers] = useState<PlayerResponse[]>([]);
-  const [playerFilter, setPlayerFilter] = useState<PlayerFilter>({
-    limit: PAGE_SIZE,
-    offset: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerResponse | null>(
-    null,
-  );
-  const [aiLoading, setAiLoading] = useState(false);
+function filterToUrl(filter: PlayerFilter): string {
+    const params = new URLSearchParams();
+    if (filter.statuses && filter.statuses.length > 0) {
+        filter.statuses.forEach((s) => params.append("status", String(s)));
+    }
+    if (filter.classes && filter.classes.length > 0) {
+        filter.classes.forEach((c) => params.append("class", c));
+    }
+    if (filter.minItemLevel !== undefined) {
+        params.set("minItemLevel", String(filter.minItemLevel));
+    }
+    if (filter.minMythicKills !== undefined) {
+        params.set("minMythicKills", String(filter.minMythicKills));
+    }
+    if (filter.limit) params.set("limit", String(filter.limit));
+    if (filter.offset) params.set("offset", String(filter.offset));
+    const queryStr = params.toString();
+    return queryStr ? `/?${queryStr}` : "/";
+}
 
-  const reload = () => {
-    setLoading(true);
-    fetchPlayers(playerFilter)
-      .then(setPlayers)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+function urlToFilter(): PlayerFilter {
+    const params = new URLSearchParams(window.location.search);
+    const filter: PlayerFilter = { limit: PAGE_SIZE, offset: 0 };
 
-  const handleFilterChange = (next: PlayerFilter) => {
-    setPlayerFilter({ ...next, limit: PAGE_SIZE, offset: 0 });
-  };
+    const statuses = params.getAll("status").map((s) => Number(s) as PlayerStatus);
+    if (statuses.length > 0) filter.statuses = statuses;
 
-  const goToPage = (offset: number) => {
-    setPlayerFilter((prev) => ({ ...prev, offset }));
-  };
+    const classes = params.getAll("class");
+    if (classes.length > 0) filter.classes = classes;
 
-  // Open a player modal and update the URL
-  const openPlayer = useCallback((player: PlayerResponse) => {
-    setSelectedPlayer(player);
-    window.history.pushState(
-      null,
-      "",
-      `/${player.realmSlug}/${encodeURIComponent(player.characterName)}`,
-    );
-  }, []);
+    const minItemLevel = params.get("minItemLevel");
+    if (minItemLevel) filter.minItemLevel = parseFloat(minItemLevel);
 
-  const closeModal = useCallback(() => {
-    setSelectedPlayer(null);
-    window.history.pushState(null, "", "/");
-  }, []);
+    const minMythicKills = params.get("minMythicKills");
+    if (minMythicKills) filter.minMythicKills = parseInt(minMythicKills, 10);
 
-  // Handle browser back/forward
-  useEffect(() => {
-    const onPopState = () => {
-      const match = window.location.pathname.match(/^\/([a-z0-9-]+)\/([^/]+)$/);
-      if (match) {
-        const realmSlug = match[1];
-        const characterName = decodeURIComponent(match[2]);
-        const existing = players.find(
-          (p) =>
-            p.realmSlug.toLowerCase() === realmSlug.toLowerCase() &&
-            p.characterName.toLowerCase() === characterName.toLowerCase(),
-        );
-        if (existing) {
-          setSelectedPlayer(existing);
-        } else {
-          fetchPlayerByCharacterAndRealm(realmSlug, characterName)
-            .then(setSelectedPlayer)
-            .catch(console.error);
-        }
-      } else {
-        setSelectedPlayer(null);
-      }
+    const limit = params.get("limit");
+    if (limit) filter.limit = parseInt(limit, 10);
+
+    const offset = params.get("offset");
+    if (offset) filter.offset = parseInt(offset, 10);
+
+    return filter;
+}
+
+export default function Dashboard({ initialRealmSlug, initialCharacterName }: { initialRealmSlug?: string; initialCharacterName?: string }) {
+    const [players, setPlayers] = useState<PlayerResponse[]>([]);
+    const [playerFilter, setPlayerFilter] = useState<PlayerFilter>(() => urlToFilter());
+    const [loading, setLoading] = useState(true);
+    const [selectedPlayer, setSelectedPlayer] = useState<PlayerResponse | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+
+    const reload = () => {
+        setLoading(true);
+        fetchPlayers(playerFilter)
+            .then(setPlayers)
+            .catch(console.error)
+            .finally(() => setLoading(false));
     };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [players]);
 
-  // On first load, check if URL has a player ID to deep-link into
-  useEffect(() => {
-    if (initialRealmSlug && initialCharacterName) {
-      fetchPlayerByCharacterAndRealm(initialRealmSlug, initialCharacterName)
-        .then(setSelectedPlayer)
-        .catch(console.error);
-    }
-  }, [initialRealmSlug, initialCharacterName]);
+    const handleFilterChange = (next: PlayerFilter) => {
+        const updated = { ...next, limit: PAGE_SIZE, offset: 0 };
+        setPlayerFilter(updated);
+        window.history.pushState(null, "", filterToUrl(updated));
+    };
 
-  useEffect(() => {
-    fetchPlayers(playerFilter)
-      .then(setPlayers)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [playerFilter]);
+    const goToPage = (offset: number) => {
+        const updated = { ...playerFilter, offset };
+        setPlayerFilter(updated);
+        window.history.pushState(null, "", filterToUrl(updated));
+    };
 
-  const handleStatusChange = async (
-    realmSlug: string,
-    characterName: string,
-    status: PlayerStatus,
-  ) => {
-    try {
-      const updated = await updatePlayerStatus(
-        realmSlug,
-        characterName,
-        status,
-      );
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === updated.id ? updated : p)),
-      );
-      if (selectedPlayer?.id === updated.id) setSelectedPlayer(updated);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    // Open a player modal and update the URL
+    const openPlayer = useCallback((player: PlayerResponse) => {
+        setSelectedPlayer(player);
+        window.history.pushState(null, "", `/${player.realmSlug}/${encodeURIComponent(player.characterName)}`);
+    }, []);
 
-  const handleRequestAi = async () => {
-    if (!selectedPlayer) return;
-    setAiLoading(true);
-    try {
-      const updated = await requestAiSummary(selectedPlayer.id);
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === updated.id ? updated : p)),
-      );
-      setSelectedPlayer(updated);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setAiLoading(false);
-    }
-  };
+    const closeModal = useCallback(() => {
+        setSelectedPlayer(null);
+        window.history.pushState(null, "", "/");
+    }, []);
 
-  return (
-    <>
-      {/* Filter bar */}
-      <FilterBar
-        filter={playerFilter}
-        onChange={handleFilterChange}
-        onRefresh={reload}
-      />
+    // Handle browser back/forward
+    useEffect(() => {
+        const onPopState = () => {
+            const newFilter = urlToFilter();
+            setPlayerFilter(newFilter);
 
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-        </div>
-      ) : (
-        <div>
-          {/* Header row */}
-          <div
-            className="row fw-bold border-bottom py-3 small d-none d-md-flex align-items-center"
-            style={{ backgroundColor: "#1A1716" }}
-          >
-            <div className="col-3">Player</div>
-            <div className="col-1">Class</div>
-            <div className="col-2">Realm</div>
-            <div className="col-1 text-end">iLvl</div>
-            <div className="col-1">Status</div>
-            <div className="col-2">Updated</div>
-            <div className="col-2">Actions</div>
-          </div>
-
-          {players.map((p, i) => (
-            <div
-              key={p.id}
-              className={`row align-items-center py-2 ${i % 2 === 0 ? "table-bg-light" : "table-bg-dark"}`}
-              style={{ cursor: "pointer", borderRadius: 4 }}
-              onClick={() => openPlayer(p)}
-            >
-              <div
-                className="col-md-3 fw-semibold"
-                style={{
-                  color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
-                }}
-              >
-                {p.characterName}
-              </div>
-              <div className="col-md-1">
-                {CLASS_ICONS[p.class.toLowerCase()] && (
-                  <img
-                    src={CLASS_ICONS[p.class.toLowerCase()]}
-                    alt={p.class}
-                    style={{ width: 20, height: 20 }}
-                  />
-                )}
-              </div>
-              <div className="col-md-2">{p.realm}</div>
-              <div className="col-md-1 text-end">{p.itemLevel.toFixed(1)}</div>
-              <div className="col-md-1">
-                <span className={`badge ${STATUS_BADGE[p.status]}`}>
-                  {STATUS_LABELS[p.status]}
-                </span>
-              </div>
-              <div className="col-md-2 small">
-                {new Date(p.updatedAt).toLocaleString(undefined, {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                })}
-              </div>
-              <div className="col-md-2">
-                <select
-                  className="form-select form-select-sm"
-                  style={{ width: "auto", minWidth: "120px" }}
-                  value={p.status}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) =>
-                    handleStatusChange(
-                      p.realmSlug,
-                      p.characterName,
-                      Number(e.target.value) as PlayerStatus,
-                    )
-                  }
-                >
-                  {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ))}
-
-          {players.length === 0 && (
-            <p className="text-center text-muted mt-3">No players found</p>
-          )}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {!loading && (
-        <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            disabled={(playerFilter.offset ?? 0) === 0}
-            onClick={() =>
-              goToPage(Math.max(0, (playerFilter.offset ?? 0) - PAGE_SIZE))
+            const match = window.location.pathname.match(/^\/([a-z0-9-]+)\/([^/]+)$/);
+            if (match) {
+                const realmSlug = match[1];
+                const characterName = decodeURIComponent(match[2]);
+                const existing = players.find((p) => p.realmSlug.toLowerCase() === realmSlug.toLowerCase() && p.characterName.toLowerCase() === characterName.toLowerCase());
+                if (existing) {
+                    setSelectedPlayer(existing);
+                } else {
+                    fetchPlayerByCharacterAndRealm(realmSlug, characterName).then(setSelectedPlayer).catch(console.error);
+                }
+            } else {
+                setSelectedPlayer(null);
             }
-          >
-            &laquo; Previous
-          </button>
-          <span className="text-muted small">
-            Page {Math.floor((playerFilter.offset ?? 0) / PAGE_SIZE) + 1}
-          </span>
-          {players.length >= PAGE_SIZE && (
-            <button
-              className="btn btn-sm btn-outline-secondary"
-              onClick={() => goToPage((playerFilter.offset ?? 0) + PAGE_SIZE)}
-            >
-              Next &raquo;
-            </button>
-          )}
-        </div>
-      )}
+        };
+        window.addEventListener("popstate", onPopState);
+        return () => window.removeEventListener("popstate", onPopState);
+    }, [players]);
 
-      {/* Player detail modal */}
-      {selectedPlayer && (
-        <PlayerDetailModal
-          player={selectedPlayer}
-          aiLoading={aiLoading}
-          onClose={closeModal}
-          onStatusChange={handleStatusChange}
-          onRequestAi={handleRequestAi}
-        />
-      )}
-    </>
-  );
+    // On first load, check if URL has a player ID to deep-link into
+    useEffect(() => {
+        if (initialRealmSlug && initialCharacterName) {
+            fetchPlayerByCharacterAndRealm(initialRealmSlug, initialCharacterName).then(setSelectedPlayer).catch(console.error);
+        }
+    }, [initialRealmSlug, initialCharacterName]);
+
+    useEffect(() => {
+        fetchPlayers(playerFilter)
+            .then(setPlayers)
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, [playerFilter]);
+
+    const handleStatusChange = async (realmSlug: string, characterName: string, status: PlayerStatus) => {
+        try {
+            const updated = await updatePlayerStatus(realmSlug, characterName, status);
+            setPlayers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            if (selectedPlayer?.id === updated.id) setSelectedPlayer(updated);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleRequestAi = async () => {
+        if (!selectedPlayer) return;
+        setAiLoading(true);
+        try {
+            const updated = await requestAiSummary(selectedPlayer.id);
+            setPlayers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            setSelectedPlayer(updated);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    return (
+        <>
+            {/* Filter bar */}
+            <FilterBar filter={playerFilter} onChange={handleFilterChange} onRefresh={reload} />
+
+            {/* Table */}
+            {loading ? (
+                <div className="text-center py-5">
+                    <div className="spinner-border" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            ) : (
+                <div>
+                    {/* Header row */}
+                    <div className="row fw-bold border-bottom py-3 small d-none d-md-flex align-items-center" style={{ backgroundColor: "#1A1716" }}>
+                        <div className="col-3">Player</div>
+                        <div className="col-1">Class</div>
+                        <div className="col-2">Realm</div>
+                        <div className="col-1 text-end">iLvl</div>
+                        <div className="col-1">Status</div>
+                        <div className="col-2">Updated</div>
+                        <div className="col-2">Actions</div>
+                    </div>
+
+                    {players.map((p, i) => (
+                        <div
+                            key={p.id}
+                            className={`row align-items-center py-2 ${i % 2 === 0 ? "table-bg-light" : "table-bg-dark"}`}
+                            style={{ cursor: "pointer", borderRadius: 4 }}
+                            onClick={() => openPlayer(p)}
+                        >
+                            <div
+                                className="col-md-3 fw-semibold"
+                                style={{
+                                    color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
+                                }}
+                            >
+                                {p.characterName}
+                            </div>
+                            <div className="col-md-1">
+                                {CLASS_ICONS[p.class.toLowerCase()] && <img src={CLASS_ICONS[p.class.toLowerCase()]} alt={p.class} style={{ width: 20, height: 20 }} />}
+                            </div>
+                            <div className="col-md-2">{p.realm}</div>
+                            <div className="col-md-1 text-end">{p.itemLevel.toFixed(1)}</div>
+                            <div className="col-md-1">
+                                <span className={`badge ${STATUS_BADGE[p.status]}`}>{STATUS_LABELS[p.status]}</span>
+                            </div>
+                            <div className="col-md-2 small">
+                                {new Date(p.updatedAt).toLocaleString(undefined, {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: false,
+                                })}
+                            </div>
+                            <div className="col-md-2">
+                                <select
+                                    className="form-select form-select-sm"
+                                    style={{ width: "auto", minWidth: "120px" }}
+                                    value={p.status}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => handleStatusChange(p.realmSlug, p.characterName, Number(e.target.value) as PlayerStatus)}
+                                >
+                                    {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                                        <option key={key} value={key}>
+                                            {label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    ))}
+
+                    {players.length === 0 && <p className="text-center text-muted mt-3">No players found</p>}
+                </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && (
+                <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
+                    <button
+                        className="btn btn-sm btn-outline-secondary"
+                        disabled={(playerFilter.offset ?? 0) === 0}
+                        onClick={() => goToPage(Math.max(0, (playerFilter.offset ?? 0) - PAGE_SIZE))}
+                    >
+                        &laquo; Previous
+                    </button>
+                    <span className="text-muted small">Page {Math.floor((playerFilter.offset ?? 0) / PAGE_SIZE) + 1}</span>
+                    {players.length >= PAGE_SIZE && (
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => goToPage((playerFilter.offset ?? 0) + PAGE_SIZE)}>
+                            Next &raquo;
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Player detail modal */}
+            {selectedPlayer && (
+                <PlayerDetailModal player={selectedPlayer} aiLoading={aiLoading} onClose={closeModal} onStatusChange={handleStatusChange} onRequestAi={handleRequestAi} />
+            )}
+        </>
+    );
 }

@@ -19,9 +19,16 @@ public static class EndpointMapper
     {
         api.MapGet(
             "/players",
-            async (PlayerDatabaseService db, PlayerStatus? status, string? playerClass, int? limit, int? offset) =>
+            async (PlayerDatabaseService db, int? limit, int? offset, int[]? status, string[]? playerClass, double? minItemLevel, int? minMythicKills) =>
             {
-                var players = await db.GetPlayersAsync(status, playerClass, limit ?? 50, offset ?? 0);
+                var players = await db.GetPlayersAsync(
+                    statuses: status?.Select(s => (PlayerStatus)s).ToList(),
+                    playerClasses: playerClass?.ToList(),
+                    minItemLevel: minItemLevel,
+                    minMythicKills: minMythicKills,
+                    limit: limit ?? 50,
+                    offset: offset ?? 0
+                );
                 return Results.Ok(players);
             }
         );
