@@ -11,16 +11,9 @@ public class PlayerDatabaseService
     private readonly string _connectionString;
     private readonly ILogger<PlayerDatabaseService> _logger;
 
-    public PlayerDatabaseService(
-        IConfiguration configuration,
-        ILogger<PlayerDatabaseService> logger
-    )
+    public PlayerDatabaseService(IConfiguration configuration, ILogger<PlayerDatabaseService> logger)
     {
-        _connectionString =
-            configuration.GetConnectionString("PostgreSQL")
-            ?? throw new InvalidOperationException(
-                "PostgreSQL connection string not found in configuration"
-            );
+        _connectionString = configuration.GetConnectionString("PostgreSQL") ?? throw new InvalidOperationException("PostgreSQL connection string not found in configuration");
         _logger = logger;
     }
 
@@ -53,6 +46,7 @@ public class PlayerDatabaseService
                 status INTEGER NOT NULL DEFAULT 0,
                 discord_message_id BIGINT,
                 discord_channel_id BIGINT,
+                current_tier_mythic_kill_count INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT unique_player_record UNIQUE (character_name, realm)
@@ -110,15 +104,11 @@ public class PlayerDatabaseService
             guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
             warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
             status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+            current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
             created_at AS CreatedAt, updated_at AS UpdatedAt
             FROM players";
 
-    public async Task<List<PlayerResponse>> GetPlayersAsync(
-        PlayerStatus? status = null,
-        string? playerClass = null,
-        int limit = 50,
-        int offset = 0
-    )
+    public async Task<List<PlayerResponse>> GetPlayersAsync(PlayerStatus? status = null, string? playerClass = null, int limit = 50, int offset = 0)
     {
         using var connection = CreateConnection();
 
@@ -170,11 +160,11 @@ public class PlayerDatabaseService
             INSERT INTO players (character_name, class, realm, realm_slug, item_level, last_updated,
                 character_url, battletag, bio, languages, specs_playing, guild_history,
                 raiderio_summary, warcraftlogs_summary, status,
-                discord_message_id, discord_channel_id, created_at, updated_at)
+                discord_message_id, discord_channel_id, current_tier_mythic_kill_count, created_at, updated_at)
             VALUES (@CharacterName, @Class, @Realm, @RealmSlug, @ItemLevel, @LastUpdated,
                 @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory,
                 @RaiderIoSummary, @WarcraftLogsSummary, @Status,
-                @DiscordMessageId, @DiscordChannelId, @Now, @Now)
+                @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, @Now, @Now)
             ON CONFLICT (character_name, realm)
             DO UPDATE SET class = @Class, realm_slug = @RealmSlug, item_level = @ItemLevel,
                 last_updated = @LastUpdated, character_url = @CharacterUrl, battletag = @BattleTag,
@@ -189,6 +179,7 @@ public class PlayerDatabaseService
                 guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QuerySingleAsync<PlayerResponse>(
@@ -212,6 +203,7 @@ public class PlayerDatabaseService
                 Status = (int)PlayerStatus.New,
                 DiscordMessageId = (long?)request.DiscordMessageId,
                 DiscordChannelId = (long?)request.DiscordChannelId,
+                request.CurrentTierMythicKillCount,
                 Now = DateTime.UtcNow,
             }
         );
@@ -230,6 +222,7 @@ public class PlayerDatabaseService
                 guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -256,6 +249,7 @@ public class PlayerDatabaseService
                 guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -269,10 +263,7 @@ public class PlayerDatabaseService
         );
     }
 
-    public async Task<PlayerResponse?> GetPlayerByCharacterAndRealmAsync(
-        string characterName,
-        string realmSlug
-    )
+    public async Task<PlayerResponse?> GetPlayerByCharacterAndRealmAsync(string characterName, string realmSlug)
     {
         using var connection = CreateConnection();
 
@@ -281,17 +272,10 @@ public class PlayerDatabaseService
             WHERE LOWER(character_name) = LOWER(@CharacterName)
             AND LOWER(realm_slug) = LOWER(@RealmSlug)";
 
-        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
-            sql,
-            new { CharacterName = characterName, RealmSlug = realmSlug }
-        );
+        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(sql, new { CharacterName = characterName, RealmSlug = realmSlug });
     }
 
-    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAndRealmAsync(
-        string characterName,
-        string realmSlug,
-        PlayerStatus status
-    )
+    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAndRealmAsync(string characterName, string realmSlug, PlayerStatus status)
     {
         using var connection = CreateConnection();
 
@@ -307,6 +291,7 @@ public class PlayerDatabaseService
                 guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -346,10 +331,7 @@ public class PlayerDatabaseService
             WHERE LOWER(character_name) = LOWER(@CharacterName)
             AND LOWER(realm) = LOWER(@Realm)";
 
-        return await connection.QueryFirstOrDefaultAsync<DateTime?>(
-            sql,
-            new { CharacterName = characterName, Realm = realm }
-        );
+        return await connection.QueryFirstOrDefaultAsync<DateTime?>(sql, new { CharacterName = characterName, Realm = realm });
     }
 
     public async Task AddSeenPlayerAsync(string characterName, string realm, DateTime lastUpdated)
@@ -373,12 +355,7 @@ public class PlayerDatabaseService
             }
         );
 
-        _logger.LogDebug(
-            "Added/updated seen player: {Character}-{Realm} (LastUpdated: {LastUpdated})",
-            characterName,
-            realm,
-            lastUpdated
-        );
+        _logger.LogDebug("Added/updated seen player: {Character}-{Realm} (LastUpdated: {LastUpdated})", characterName, realm, lastUpdated);
     }
 
     public async Task<int> GetSeenPlayersCountAsync()
@@ -397,11 +374,7 @@ public class PlayerDatabaseService
 
         if (deletedCount > 0)
         {
-            _logger.LogInformation(
-                "Cleaned up {Count} old seen player records (older than {Days} days)",
-                deletedCount,
-                daysToKeep
-            );
+            _logger.LogInformation("Cleaned up {Count} old seen player records (older than {Days} days)", deletedCount, daysToKeep);
         }
     }
 
@@ -409,9 +382,7 @@ public class PlayerDatabaseService
     /// Bulk insert/update seen players in a single database operation.
     /// Reduces HTTP calls and database round-trips significantly.
     /// </summary>
-    public async Task BulkAddSeenPlayersAsync(
-        List<(string CharacterName, string Realm, DateTime LastUpdated)> seenPlayers
-    )
+    public async Task BulkAddSeenPlayersAsync(List<(string CharacterName, string Realm, DateTime LastUpdated)> seenPlayers)
     {
         if (seenPlayers.Count == 0)
             return;
@@ -433,9 +404,7 @@ public class PlayerDatabaseService
             {
                 CharacterNames = seenPlayers.Select(x => x.CharacterName).ToArray(),
                 Realms = seenPlayers.Select(x => x.Realm).ToArray(),
-                LastUpdateds = seenPlayers
-                    .Select(x => DateTime.SpecifyKind(x.LastUpdated, DateTimeKind.Unspecified))
-                    .ToArray(),
+                LastUpdateds = seenPlayers.Select(x => DateTime.SpecifyKind(x.LastUpdated, DateTimeKind.Unspecified)).ToArray(),
             }
         );
 
@@ -484,36 +453,18 @@ public class PlayerDatabaseService
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
-        await connection.ExecuteAsync(
-            "DELETE FROM config WHERE key = 'bosskills'",
-            transaction: transaction
-        );
-        await connection.ExecuteAsync(
-            "INSERT INTO config (key, value) VALUES ('bosskills', @Value)",
-            new { Value = request.BossKills.ToString() },
-            transaction: transaction
-        );
+        await connection.ExecuteAsync("DELETE FROM config WHERE key = 'bosskills'", transaction: transaction);
+        await connection.ExecuteAsync("INSERT INTO config (key, value) VALUES ('bosskills', @Value)", new { Value = request.BossKills.ToString() }, transaction: transaction);
 
-        await connection.ExecuteAsync(
-            "DELETE FROM config WHERE key = 'acceptedclass'",
-            transaction: transaction
-        );
+        await connection.ExecuteAsync("DELETE FROM config WHERE key = 'acceptedclass'", transaction: transaction);
 
         foreach (var cls in request.AcceptedClasses)
         {
-            await connection.ExecuteAsync(
-                "INSERT INTO config (key, value) VALUES ('acceptedclass', @Value)",
-                new { Value = cls.ToLower() },
-                transaction: transaction
-            );
+            await connection.ExecuteAsync("INSERT INTO config (key, value) VALUES ('acceptedclass', @Value)", new { Value = cls.ToLower() }, transaction: transaction);
         }
 
         transaction.Commit();
 
-        return new AdminConfigResponse
-        {
-            BossKills = request.BossKills,
-            AcceptedClasses = [.. request.AcceptedClasses.Select(c => c.ToLower())],
-        };
+        return new AdminConfigResponse { BossKills = request.BossKills, AcceptedClasses = [.. request.AcceptedClasses.Select(c => c.ToLower())] };
     }
 }

@@ -14,12 +14,8 @@ builder.Services.AddHttpClient<WarcraftLogsService>();
 // Our own API client
 builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
 {
-    var baseUrl =
-        builder.Configuration["SuperRecruiterApi:BaseUrl"]
-        ?? throw new InvalidOperationException("SuperRecruiterApi:BaseUrl is not configured");
-    var apiKey =
-        builder.Configuration["SuperRecruiterApi:ApiKey"]
-        ?? throw new InvalidOperationException("SuperRecruiterApi:ApiKey is not configured");
+    var baseUrl = builder.Configuration["SuperRecruiterApi:BaseUrl"] ?? throw new InvalidOperationException("SuperRecruiterApi:BaseUrl is not configured");
+    var apiKey = builder.Configuration["SuperRecruiterApi:ApiKey"] ?? throw new InvalidOperationException("SuperRecruiterApi:ApiKey is not configured");
 
     client.BaseAddress = new Uri(baseUrl);
     client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);

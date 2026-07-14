@@ -10,11 +10,7 @@ namespace SuperRecruiter.Worker.Services;
 /// <summary>
 /// https://www.warcraftlogs.com/api/docs
 /// </summary>
-public class WarcraftLogsService(
-    ILogger<WarcraftLogsService> logger,
-    HttpClient httpClient,
-    IConfiguration configuration
-)
+public class WarcraftLogsService(ILogger<WarcraftLogsService> logger, HttpClient httpClient, IConfiguration configuration)
 {
     private string? _accessToken;
     private DateTime _tokenExpiresAt = DateTime.MinValue;
@@ -22,10 +18,7 @@ public class WarcraftLogsService(
     private const string TokenUrl = "https://www.warcraftlogs.com/oauth/token";
     private const string GraphQLUrl = "https://www.warcraftlogs.com/api/v2/client";
 
-    public async Task<WarcraftLogsCharacterResponse?> GetCharacterDataAsync(
-        Player player,
-        CancellationToken cancellationToken = default
-    )
+    public async Task<WarcraftLogsCharacterResponse?> GetCharacterDataAsync(Player player, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -36,34 +29,21 @@ public class WarcraftLogsService(
 
             var requestBody = new { query };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, GraphQLUrl)
-            {
-                Content = JsonContent.Create(requestBody),
-            };
+            var request = new HttpRequestMessage(HttpMethod.Post, GraphQLUrl) { Content = JsonContent.Create(requestBody) };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
 
             var response = await httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogDebug(
-                "WarcraftLogs response for {CharacterName}: {Response}",
-                player.CharacterName,
-                responseContent
-            );
+            logger.LogDebug("WarcraftLogs response for {CharacterName}: {Response}", player.CharacterName, responseContent);
 
             var result = JsonSerializer.Deserialize<WarcraftLogsCharacterResponse>(responseContent);
             return result;
         }
         catch (Exception ex)
         {
-            logger.LogError(
-                ex,
-                "Error fetching WarcraftLogs data for {CharacterName} on {Realm}: {Message}",
-                player.CharacterName,
-                player.Realm,
-                ex.Message
-            );
+            logger.LogError(ex, "Error fetching WarcraftLogs data for {CharacterName} on {Realm}: {Message}", player.CharacterName, player.Realm, ex.Message);
             return null;
         }
     }
@@ -80,45 +60,32 @@ public class WarcraftLogsService(
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
         {
-            throw new InvalidOperationException(
-                "WarcraftLogs ClientId and ClientSecret must be configured"
-            );
+            throw new InvalidOperationException("WarcraftLogs ClientId and ClientSecret must be configured");
         }
 
         logger.LogInformation("Requesting new WarcraftLogs access token...");
 
-        var credentials = Convert.ToBase64String(
-            Encoding.ASCII.GetBytes($"{clientId}:{clientSecret}")
-        );
+        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{clientId}:{clientSecret}"));
 
         var request = new HttpRequestMessage(HttpMethod.Post, TokenUrl);
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-        request.Content = new FormUrlEncodedContent(
-            new[] { new KeyValuePair<string, string>("grant_type", "client_credentials") }
-        );
+        request.Content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("grant_type", "client_credentials") });
 
         var response = await httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var tokenResponse = await response.Content.ReadFromJsonAsync<WarcraftLogsTokenResponse>(
-            cancellationToken: cancellationToken
-        );
+        var tokenResponse = await response.Content.ReadFromJsonAsync<WarcraftLogsTokenResponse>(cancellationToken: cancellationToken);
 
         if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.AccessToken))
         {
             var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new InvalidOperationException(
-                $"Failed to obtain WarcraftLogs access token: {errorContent}"
-            );
+            throw new InvalidOperationException($"Failed to obtain WarcraftLogs access token: {errorContent}");
         }
 
         _accessToken = tokenResponse.AccessToken;
         _tokenExpiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60);
 
-        logger.LogInformation(
-            "WarcraftLogs access token obtained, expires at {ExpiresAt}",
-            _tokenExpiresAt
-        );
+        logger.LogInformation("WarcraftLogs access token obtained, expires at {ExpiresAt}", _tokenExpiresAt);
     }
 
     private class WarcraftLogsTokenResponse

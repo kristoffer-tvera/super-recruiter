@@ -21,10 +21,7 @@ public class ScraperWorker(
         var pollingIntervalMinutes = configuration.GetValue("PollingIntervalMinutes", 5);
         var pollingInterval = TimeSpan.FromMinutes(pollingIntervalMinutes);
 
-        logger.LogInformation(
-            "Scraper worker starting. Polling interval: {Interval} minutes",
-            pollingIntervalMinutes
-        );
+        logger.LogInformation("Scraper worker starting. Polling interval: {Interval} minutes", pollingIntervalMinutes);
 
         // Wait for Discord bot to be fully ready before starting the scan loop
         logger.LogInformation("Waiting for Discord bot to be ready...");
@@ -84,9 +81,7 @@ public class ScraperWorker(
 
     private async Task<List<Player>> GetMergedPlayersAsync(CancellationToken stoppingToken)
     {
-        var playersFromWoWProgress = await wowProgressService.GetLookingForGuildPlayersAsync(
-            stoppingToken
-        );
+        var playersFromWoWProgress = await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
         var playersFromRaiderIo = await raiderIOService.GetLfgPlayers(stoppingToken);
 
         return playersFromWoWProgress
@@ -96,10 +91,7 @@ public class ScraperWorker(
             .ToList();
     }
 
-    private async Task ProcessDiscoveredPlayersAsync(
-        List<Player> players,
-        CancellationToken stoppingToken
-    )
+    private async Task ProcessDiscoveredPlayersAsync(List<Player> players, CancellationToken stoppingToken)
     {
         if (players.Count == 0)
         {
@@ -110,11 +102,7 @@ public class ScraperWorker(
         var newPlayers = await FilterPlayersAsync(players, stoppingToken);
         if (newPlayers?.Count > 0)
         {
-            logger.LogInformation(
-                "Found {NewCount} new player(s) out of {TotalCount} total",
-                newPlayers.Count,
-                players.Count
-            );
+            logger.LogInformation("Found {NewCount} new player(s) out of {TotalCount} total", newPlayers.Count, players.Count);
 
             foreach (var player in newPlayers)
             {
@@ -126,10 +114,7 @@ public class ScraperWorker(
         logger.LogInformation("No new players found");
     }
 
-    public async Task<List<Player>?> FilterPlayersAsync(
-        List<Player> players,
-        CancellationToken cancellationToken
-    )
+    public async Task<List<Player>?> FilterPlayersAsync(List<Player> players, CancellationToken cancellationToken)
     {
         var filteredPlayers = new List<Player>();
 
@@ -139,11 +124,7 @@ public class ScraperWorker(
 
             if (playerCache.IsBlacklisted(player.CharacterName, player.Realm))
             {
-                logger.LogDebug(
-                    "Skipping blacklisted player: {Character}-{Realm}",
-                    player.CharacterName,
-                    player.Realm
-                );
+                logger.LogDebug("Skipping blacklisted player: {Character}-{Realm}", player.CharacterName, player.Realm);
                 continue;
             }
 
@@ -171,26 +152,16 @@ public class ScraperWorker(
 
     public async Task ProcessPlayerAsync(Player player, CancellationToken cancellationToken)
     {
-        var hasEmptyNameOrRealm =
-            string.IsNullOrWhiteSpace(player.CharacterName)
-            || string.IsNullOrWhiteSpace(player.Realm);
-        var nameIsNotOnlyLetters =
-            player.CharacterName != null && player.CharacterName.Any(c => !char.IsLetter(c));
+        var hasEmptyNameOrRealm = string.IsNullOrWhiteSpace(player.CharacterName) || string.IsNullOrWhiteSpace(player.Realm);
+        var nameIsNotOnlyLetters = player.CharacterName != null && player.CharacterName.Any(c => !char.IsLetter(c));
 
         if (hasEmptyNameOrRealm || nameIsNotOnlyLetters)
         {
-            logger.LogInformation(
-                "Skipping player with invalid name or realm: '{CharacterName}' on '{Realm}'",
-                player.CharacterName,
-                player.Realm
-            );
+            logger.LogInformation("Skipping player with invalid name or realm: '{CharacterName}' on '{Realm}'", player.CharacterName, player.Realm);
             return;
         }
 
-        var (detailedPlayer, raiderIoData, warcraftLogsData) = await EnrichPlayerAsync(
-            player,
-            cancellationToken
-        );
+        var (detailedPlayer, raiderIoData, warcraftLogsData) = await EnrichPlayerAsync(player, cancellationToken);
 
         if (ShouldSkipForLanguage(player))
         {
@@ -198,17 +169,12 @@ public class ScraperWorker(
         }
 
         var (raiderIoSummary, warcraftLogsSummary) = BuildSummaries(raiderIoData, warcraftLogsData);
-        var createRequest = BuildCreatePlayerRequest(
-            detailedPlayer,
-            raiderIoSummary,
-            warcraftLogsSummary
-        );
+        var createRequest = BuildCreatePlayerRequest(detailedPlayer, raiderIoSummary, warcraftLogsSummary);
+
+        createRequest.CurrentTierMythicKillCount = raiderIoData?.Raid_progression?.Sum(raid => raid.Value.Mythic_bosses_killed) ?? 0;
 
         // 7. Send Discord message with buttons (URL is now deterministic - no placeholder needed)
-        var messageId = await discordBotService.SendPlayerMessageAsync(
-            detailedPlayer,
-            raiderIoData
-        );
+        var messageId = await discordBotService.SendPlayerMessageAsync(detailedPlayer, raiderIoData);
 
         // 8. Include Discord message ID in the POST to API
         if (messageId.HasValue)
@@ -218,35 +184,19 @@ public class ScraperWorker(
 
         var apiPlayer = await apiClient.CreatePlayerAsync(createRequest);
 
-        logger.LogInformation(
-            "Successfully processed player {Character}-{Realm}",
-            detailedPlayer.CharacterName,
-            detailedPlayer.Realm
-        );
+        logger.LogInformation("Successfully processed player {Character}-{Realm}", detailedPlayer.CharacterName, detailedPlayer.Realm);
     }
 
-    private async Task<(
-        Player DetailedPlayer,
-        RaiderIOProfile? RaiderIoData,
-        WarcraftLogsCharacterResponse? WarcraftLogsData
-    )> EnrichPlayerAsync(Player player, CancellationToken cancellationToken)
+    private async Task<(Player DetailedPlayer, RaiderIOProfile? RaiderIoData, WarcraftLogsCharacterResponse? WarcraftLogsData)> EnrichPlayerAsync(
+        Player player,
+        CancellationToken cancellationToken
+    )
     {
-        var raiderIoData = await raiderIOService.GetCharacterProfileAsync(
-            "eu",
-            player.RealmSlug,
-            player.CharacterName,
-            cancellationToken
-        );
+        var raiderIoData = await raiderIOService.GetCharacterProfileAsync("eu", player.RealmSlug, player.CharacterName, cancellationToken);
 
-        var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(
-            player,
-            cancellationToken
-        );
+        var warcraftLogsData = await warcraftLogsService.GetCharacterDataAsync(player, cancellationToken);
 
-        var detailedPlayer =
-            player.Source == LfgSource.WoWProgress
-                ? await wowProgressService.GetPlayerDetailsAsync(player, cancellationToken)
-                : player;
+        var detailedPlayer = player.Source == LfgSource.WoWProgress ? await wowProgressService.GetPlayerDetailsAsync(player, cancellationToken) : player;
 
         return (detailedPlayer, raiderIoData, warcraftLogsData);
     }
@@ -263,32 +213,18 @@ public class ScraperWorker(
             return false;
         }
 
-        logger.LogInformation(
-            "Player {Character}-{Realm} does not speak English. Skipping.",
-            player.CharacterName,
-            player.Realm
-        );
+        logger.LogInformation("Player {Character}-{Realm} does not speak English. Skipping.", player.CharacterName, player.Realm);
         return true;
     }
 
-    private static (string RaiderIoSummary, string? WarcraftLogsSummary) BuildSummaries(
-        RaiderIOProfile? raiderIoData,
-        WarcraftLogsCharacterResponse? warcraftLogsData
-    )
+    private static (string RaiderIoSummary, string? WarcraftLogsSummary) BuildSummaries(RaiderIOProfile? raiderIoData, WarcraftLogsCharacterResponse? warcraftLogsData)
     {
         var raiderIoSummary = string.Join(
             "\n\n",
-            [
-                PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoData),
-                PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData),
-            ]
+            [PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(raiderIoData), PlayerSummaryHelper.GetCuttingEdgeSummary(raiderIoData)]
         );
 
-        var warcraftLogsZoneRankings = warcraftLogsData
-            ?.Data
-            ?.CharacterData
-            ?.Character
-            ?.ZoneRankings;
+        var warcraftLogsZoneRankings = warcraftLogsData?.Data?.CharacterData?.Character?.ZoneRankings;
 
         if (warcraftLogsZoneRankings == null)
         {
@@ -297,20 +233,13 @@ public class ScraperWorker(
 
         var warcraftLogsSummary = string.Join(
             "\n\n",
-            [
-                PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings),
-                PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings),
-            ]
+            [PlayerSummaryHelper.GetAllStarsSummary(warcraftLogsZoneRankings), PlayerSummaryHelper.GetBossSummary(warcraftLogsZoneRankings)]
         );
 
         return (raiderIoSummary, warcraftLogsSummary);
     }
 
-    private static CreatePlayerRequest BuildCreatePlayerRequest(
-        Player detailedPlayer,
-        string raiderIoSummary,
-        string? warcraftLogsSummary
-    )
+    private static CreatePlayerRequest BuildCreatePlayerRequest(Player detailedPlayer, string raiderIoSummary, string? warcraftLogsSummary)
     {
         return new CreatePlayerRequest
         {

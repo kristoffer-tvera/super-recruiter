@@ -2,11 +2,7 @@ using SuperRecruiter.Shared.Models;
 
 namespace SuperRecruiter.Api.Services;
 
-public class GeminiService(
-    HttpClient httpClient,
-    ILogger<GeminiService> logger,
-    IConfiguration configuration
-)
+public class GeminiService(HttpClient httpClient, ILogger<GeminiService> logger, IConfiguration configuration)
 {
     private readonly string? _url = configuration["Gemini:Url"];
     private readonly string? _apiKey = configuration["Gemini:ApiKey"];
@@ -16,12 +12,7 @@ public class GeminiService(
     /// </summary>
     public async Task<string> GetGeminiTakeForPlayer(Shared.DTOs.PlayerResponse player)
     {
-        logger.LogInformation(
-            "Building Gemini prompt for player {PlayerName} on realm {Realm}, using url: {Url}",
-            player.CharacterName,
-            player.Realm,
-            _url
-        );
+        logger.LogInformation("Building Gemini prompt for player {PlayerName} on realm {Realm}, using url: {Url}", player.CharacterName, player.Realm, _url);
 
         var textBlocks = new List<string>
         {
@@ -93,11 +84,7 @@ Keep the entire response under 300 words. Be direct, professional, and brutally 
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            logger.LogWarning(
-                "Gemini API request failed with status code {StatusCode}. Response: {Response}",
-                response.StatusCode,
-                errorContent
-            );
+            logger.LogWarning("Gemini API request failed with status code {StatusCode}. Response: {Response}", response.StatusCode, errorContent);
             return string.Empty;
         }
 

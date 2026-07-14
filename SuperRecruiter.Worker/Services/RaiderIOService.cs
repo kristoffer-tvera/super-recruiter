@@ -6,20 +6,11 @@ namespace SuperRecruiter.Worker.Services;
 /// <summary>
 /// https://raider.io/api#/character/getApiV1CharactersProfile
 /// </summary>
-public class RaiderIOService(
-    ILogger<RaiderIOService> logger,
-    HttpClient httpClient,
-    IConfiguration configuration
-)
+public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpClient, IConfiguration configuration)
 {
     private const string BaseUrl = "https://raider.io/api";
 
-    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(
-        string region,
-        string realm,
-        string characterName,
-        CancellationToken cancellationToken = default
-    )
+    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(string region, string realm, string characterName, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -32,13 +23,7 @@ public class RaiderIOService(
 
             var normalizedRealm = realm.ToLowerInvariant().Replace(" ", "-");
 
-            var tierSlugs = new[]
-            {
-                "tier-mn-1",
-                "manaforge-omega",
-                "liberation-of-undermine",
-                "nerubar-palace",
-            };
+            var tierSlugs = new[] { "tier-mn-1", "manaforge-omega", "liberation-of-undermine", "nerubar-palace" };
 
             var queryStringParameters = new Dictionary<string, string>
             {
@@ -46,31 +31,18 @@ public class RaiderIOService(
                 { "region", region },
                 { "realm", normalizedRealm },
                 { "name", characterName },
-                {
-                    "fields",
-                    $"raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', tierSlugs)}"
-                },
+                { "fields", $"raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', tierSlugs)}" },
             };
 
-            var url =
-                $"{BaseUrl}/v1/characters/profile?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
+            var url = $"{BaseUrl}/v1/characters/profile?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
 
-            logger.LogDebug(
-                "Fetching RaiderIO profile for {Character} on {Realm} ({Region})",
-                characterName,
-                normalizedRealm,
-                region
-            );
+            logger.LogDebug("Fetching RaiderIO profile for {Character} on {Realm} ({Region})", characterName, normalizedRealm, region);
 
             var response = await httpClient.GetAsync(url, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning(
-                    "Failed to fetch RaiderIO profile for {Character}. Status: {Status}",
-                    characterName,
-                    response.StatusCode
-                );
+                logger.LogWarning("Failed to fetch RaiderIO profile for {Character}. Status: {Status}", characterName, response.StatusCode);
                 return null;
             }
 
@@ -82,11 +54,7 @@ public class RaiderIOService(
 
             if (profile != null)
             {
-                logger.LogInformation(
-                    "Successfully fetched raid progression for {Character}: {Summary}",
-                    characterName,
-                    GetRaidProgressionSummary(profile)
-                );
+                logger.LogInformation("Successfully fetched raid progression for {Character}: {Summary}", characterName, GetRaidProgressionSummary(profile));
             }
 
             if (profile?.Raid_achievement_curve != null)
@@ -103,12 +71,7 @@ public class RaiderIOService(
         }
         catch (Exception ex)
         {
-            logger.LogError(
-                ex,
-                "Error fetching RaiderIO profile for {Character} on {Realm}",
-                characterName,
-                realm
-            );
+            logger.LogError(ex, "Error fetching RaiderIO profile for {Character} on {Realm}", characterName, realm);
             return null;
         }
     }
@@ -125,8 +88,7 @@ public class RaiderIOService(
             { "offset", "0" },
         };
 
-        var url =
-            $"{BaseUrl}/search-advanced?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
+        var url = $"{BaseUrl}/search-advanced?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";
 
         logger.LogInformation("Fetching RaiderIO LFG matches with URL: {Url}", url);
 
@@ -134,10 +96,7 @@ public class RaiderIOService(
 
         if (!response.IsSuccessStatusCode)
         {
-            logger.LogWarning(
-                "Failed to fetch RaiderIO LFG matches. Status: {Status}",
-                response.StatusCode
-            );
+            logger.LogWarning("Failed to fetch RaiderIO LFG matches. Status: {Status}", response.StatusCode);
             return null;
         }
 
@@ -156,13 +115,10 @@ public class RaiderIOService(
                 Realm = match.Data.Realm.Name,
                 Class = match.Data.Class.Name,
                 SpecsPlaying = match.Data.Spec?.Name,
-                CharacterUrl =
-                    $"https://www.wowprogress.com/character/eu/{match.Data.Realm.Slug}/{match.Name}",
+                CharacterUrl = $"https://www.wowprogress.com/character/eu/{match.Data.Realm.Slug}/{match.Name}",
                 Bio = match.Data.Recruitment?.GuildRaids?.Profile?.Caption ?? string.Empty,
                 ItemLevel = match.Data.ItemLevelEquipped,
-                LastUpdated =
-                    match.Data.Recruitment?.GuildRaids?.Profile?.ThrottledPublishedAt
-                    ?? DateTime.UtcNow,
+                LastUpdated = match.Data.Recruitment?.GuildRaids?.Profile?.ThrottledPublishedAt ?? DateTime.UtcNow,
                 Languages = GetLanguages(match.Data.Recruitment),
                 Source = LfgSource.RaiderIO,
             };
@@ -232,10 +188,7 @@ public class RaiderIOService(
         var parts = kebabCase.Split('-', StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < parts.Length; i++)
         {
-            parts[i] =
-                parts[i].Length > 1
-                    ? char.ToUpper(parts[i][0]) + parts[i][1..].ToLower()
-                    : parts[i].ToUpper();
+            parts[i] = parts[i].Length > 1 ? char.ToUpper(parts[i][0]) + parts[i][1..].ToLower() : parts[i].ToUpper();
         }
         return string.Join(' ', parts);
     }

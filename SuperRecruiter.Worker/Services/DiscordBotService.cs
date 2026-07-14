@@ -18,32 +18,18 @@ public class DiscordBotService : IHostedService
     private readonly string? _botToken;
     private readonly ulong _channelId;
     private readonly string _frontendBaseUrl;
-    private readonly TaskCompletionSource _readyTcs = new(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    );
+    private readonly TaskCompletionSource _readyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public DiscordBotService(
-        ILogger<DiscordBotService> logger,
-        IConfiguration configuration,
-        IServiceProvider serviceProvider
-    )
+    public DiscordBotService(ILogger<DiscordBotService> logger, IConfiguration configuration, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _configuration = configuration;
         _serviceProvider = serviceProvider;
         _botToken = configuration["Discord:BotToken"];
         _channelId = configuration.GetValue<ulong>("Discord:ChannelId");
-        _frontendBaseUrl =
-            configuration["FrontendBaseUrl"]
-            ?? throw new InvalidOperationException("FrontendBaseUrl is not configured");
+        _frontendBaseUrl = configuration["FrontendBaseUrl"] ?? throw new InvalidOperationException("FrontendBaseUrl is not configured");
 
-        _client = new DiscordSocketClient(
-            new DiscordSocketConfig
-            {
-                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages,
-                LogLevel = LogSeverity.Info,
-            }
-        );
+        _client = new DiscordSocketClient(new DiscordSocketConfig { GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages, LogLevel = LogSeverity.Info });
 
         _client.Log += LogAsync;
         _client.Ready += ReadyAsync;
@@ -87,11 +73,7 @@ public class DiscordBotService : IHostedService
     private Task ReadyAsync()
     {
         _logger.LogInformation("Discord bot connected as {User}", _client.CurrentUser?.Username);
-        _logger.LogInformation(
-            "Discord bot guilds: {GuildCount} | Cached channels: {ChannelCount}",
-            _client.Guilds.Count,
-            _client.Guilds.SelectMany(g => g.Channels).Count()
-        );
+        _logger.LogInformation("Discord bot guilds: {GuildCount} | Cached channels: {ChannelCount}", _client.Guilds.Count, _client.Guilds.SelectMany(g => g.Channels).Count());
 
         var targetChannel = _client.GetChannel(_channelId);
 
@@ -117,10 +99,7 @@ public class DiscordBotService : IHostedService
     /// Sends a player notification message to the configured channel with interactive buttons.
     /// Returns the Discord message ID so it can be stored in the API.
     /// </summary>
-    public async Task<ulong?> SendPlayerMessageAsync(
-        Player player,
-        RaiderIOProfile? raiderIoProfile
-    )
+    public async Task<ulong?> SendPlayerMessageAsync(Player player, RaiderIOProfile? raiderIoProfile)
     {
         if (_client.ConnectionState != ConnectionState.Connected)
         {
@@ -151,64 +130,29 @@ public class DiscordBotService : IHostedService
             $"[WCL](https://www.warcraftlogs.com/character/eu/{player.RealmSlug}/{player.CharacterName})",
         };
 
-        var currentTierExp = PlayerSummaryHelper.GetCurrentExpansionProgressForDiscord(
-            raiderIoProfile
-        );
+        var currentTierExp = PlayerSummaryHelper.GetCurrentExpansionProgressForDiscord(raiderIoProfile);
 
         // Build the embed
         var embed = new EmbedBuilder()
-            .WithTitle(
-                $"{player.CharacterName}-{player.Realm} | {player.Class} | {player.ItemLevel} | {currentTierExp}"
-            )
+            .WithTitle($"{player.CharacterName}-{player.Realm} | {player.Class} | {player.ItemLevel} | {currentTierExp}")
             .WithColor(new Color((uint)PlayerSummaryHelper.ClassColorFromClassName(player.Class)))
             .WithThumbnailUrl(thumbnail)
-            .WithDescription(
-                player.Bio != null
-                    ? player.Bio[..Math.Min(player.Bio.Length, 2000)]
-                    : "No bio available"
-            )
+            .WithDescription(player.Bio != null ? player.Bio[..Math.Min(player.Bio.Length, 2000)] : "No bio available")
             .AddField("Links", string.Join(" | ", links))
-            .AddField(
-                "Languages / Specs",
-                $"{player.Languages ?? "N/A"} | {player.SpecsPlaying ?? "N/A"}"
-            );
+            .AddField("Languages / Specs", $"{player.Languages ?? "N/A"} | {player.SpecsPlaying ?? "N/A"}");
 
         // Build action row with buttons
         var components = new ComponentBuilder()
-            .WithButton(
-                "Interested",
-                $"status:interested:{player.RealmSlug}:{player.CharacterName}",
-                ButtonStyle.Success
-            )
-            .WithButton(
-                "Contacted",
-                $"status:contacted:{player.RealmSlug}:{player.CharacterName}",
-                ButtonStyle.Primary
-            )
-            .WithButton(
-                "Declined",
-                $"status:declined:{player.RealmSlug}:{player.CharacterName}",
-                ButtonStyle.Secondary
-            )
-            .WithButton(
-                "Blacklist",
-                $"status:blacklist:{player.RealmSlug}:{player.CharacterName}",
-                ButtonStyle.Danger
-            )
-            .WithButton(
-                "Open",
-                style: ButtonStyle.Link,
-                url: $"{_frontendBaseUrl}/{player.RealmSlug}/{player.CharacterName}"
-            )
+            .WithButton("Interested", $"status:interested:{player.RealmSlug}:{player.CharacterName}", ButtonStyle.Success)
+            .WithButton("Contacted", $"status:contacted:{player.RealmSlug}:{player.CharacterName}", ButtonStyle.Primary)
+            .WithButton("Declined", $"status:declined:{player.RealmSlug}:{player.CharacterName}", ButtonStyle.Secondary)
+            .WithButton("Blacklist", $"status:blacklist:{player.RealmSlug}:{player.CharacterName}", ButtonStyle.Danger)
+            .WithButton("Open", style: ButtonStyle.Link, url: $"{_frontendBaseUrl}/{player.RealmSlug}/{player.CharacterName}")
             .Build();
 
         var message = await channel.SendMessageAsync(embed: embed.Build(), components: components);
 
-        _logger.LogInformation(
-            "Sent Discord message {MessageId} for player {Player}",
-            message.Id,
-            player.CharacterName
-        );
+        _logger.LogInformation("Sent Discord message {MessageId} for player {Player}", message.Id, player.CharacterName);
 
         return message.Id;
     }
@@ -238,15 +182,9 @@ public class DiscordBotService : IHostedService
 
         var officerRoleId = (ulong)420722779432943616;
 
-        if (
-            component.User is not SocketGuildUser user
-            || !user.Roles.Any(r => r.Id == officerRoleId)
-        )
+        if (component.User is not SocketGuildUser user || !user.Roles.Any(r => r.Id == officerRoleId))
         {
-            await component.RespondAsync(
-                "You don't have permission to perform this action.",
-                ephemeral: true
-            );
+            await component.RespondAsync("You don't have permission to perform this action.", ephemeral: true);
             return;
         }
 
@@ -280,40 +218,22 @@ public class DiscordBotService : IHostedService
             using var scope = _serviceProvider.CreateScope();
             var apiClient = scope.ServiceProvider.GetRequiredService<SuperRecruiterApiClient>();
 
-            var updated = await apiClient.UpdatePlayerStatusByCharacterAsync(
-                realmSlug,
-                characterName,
-                status.Value
-            );
+            var updated = await apiClient.UpdatePlayerStatusByCharacterAsync(realmSlug, characterName, status.Value);
             if (updated != null)
             {
-                var deleteMessage =
-                    status.Value == PlayerStatus.Declined
-                    || status.Value == PlayerStatus.Blacklisted;
+                var deleteMessage = status.Value == PlayerStatus.Declined || status.Value == PlayerStatus.Blacklisted;
 
                 if (deleteMessage)
                 {
-                    await component.RespondAsync(
-                        $"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.",
-                        ephemeral: true
-                    );
+                    await component.RespondAsync($"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.", ephemeral: true);
                     await component.Message.DeleteAsync();
                 }
                 else
                 {
-                    await component.RespondAsync(
-                        $"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.",
-                        ephemeral: false
-                    );
+                    await component.RespondAsync($"Player **{updated.CharacterName}-{updated.Realm}** marked as **{status.Value}** by {component.User.Mention}.", ephemeral: false);
                 }
 
-                _logger.LogInformation(
-                    "Player {Character}-{Realm} status updated to {Status} by {User}",
-                    characterName,
-                    realmSlug,
-                    status.Value,
-                    component.User.Username
-                );
+                _logger.LogInformation("Player {Character}-{Realm} status updated to {Status} by {User}", characterName, realmSlug, status.Value, component.User.Username);
             }
             else
             {
@@ -322,16 +242,8 @@ public class DiscordBotService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Error handling Discord interaction for player {Character}-{Realm}",
-                characterName,
-                realmSlug
-            );
-            await component.RespondAsync(
-                "An error occurred processing your action.",
-                ephemeral: true
-            );
+            _logger.LogError(ex, "Error handling Discord interaction for player {Character}-{Realm}", characterName, realmSlug);
+            await component.RespondAsync("An error occurred processing your action.", ephemeral: true);
         }
     }
 }

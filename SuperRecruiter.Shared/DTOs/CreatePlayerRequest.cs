@@ -22,4 +22,7 @@ public class CreatePlayerRequest
     // Discord tracking
     public ulong? DiscordMessageId { get; set; }
     public ulong? DiscordChannelId { get; set; }
+
+    // Mythic progression
+    public int CurrentTierMythicKillCount { get; set; }
 }

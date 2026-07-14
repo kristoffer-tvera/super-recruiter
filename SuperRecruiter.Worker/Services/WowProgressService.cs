@@ -5,18 +5,12 @@ using SuperRecruiter.Shared.Models;
 
 namespace SuperRecruiter.Worker.Services;
 
-public class WowProgressService(
-    ILogger<WowProgressService> logger,
-    HttpClient httpClient,
-    IConfiguration configuration
-)
+public class WowProgressService(ILogger<WowProgressService> logger, HttpClient httpClient, IConfiguration configuration)
 {
     private const string BaseUrl = "https://www.wowprogress.com";
     private const string LfgUrl = "/gearscore/eu?lfg=1&sortby=ts";
 
-    public async Task<List<Player>> GetLookingForGuildPlayersAsync(
-        CancellationToken cancellationToken = default
-    )
+    public async Task<List<Player>> GetLookingForGuildPlayersAsync(CancellationToken cancellationToken = default)
     {
         var players = new List<Player>();
 
@@ -53,13 +47,10 @@ public class WowProgressService(
 
                     var characterCell = cells[0];
                     var characterLink = characterCell.SelectSingleNode(".//a");
-                    var characterUrl =
-                        characterLink?.GetAttributeValue("href", string.Empty) ?? string.Empty;
+                    var characterUrl = characterLink?.GetAttributeValue("href", string.Empty) ?? string.Empty;
                     var characterName = characterLink?.InnerText.Trim() ?? string.Empty;
 
-                    var ariaLabel =
-                        characterLink?.GetAttributeValue("aria-label", string.Empty)
-                        ?? string.Empty;
+                    var ariaLabel = characterLink?.GetAttributeValue("aria-label", string.Empty) ?? string.Empty;
                     var parts = ariaLabel.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     string className = string.Empty;
 
@@ -86,34 +77,21 @@ public class WowProgressService(
                     var realm = cells[3].InnerText.Trim();
 
                     var ilvlText = cells[4].InnerText.Trim();
-                    if (
-                        !double.TryParse(
-                            ilvlText,
-                            NumberStyles.Float,
-                            CultureInfo.InvariantCulture,
-                            out var itemLevel
-                        )
-                    )
+                    if (!double.TryParse(ilvlText, NumberStyles.Float, CultureInfo.InvariantCulture, out var itemLevel))
                         continue;
 
                     var dateSpan = cells[5].SelectSingleNode(".//span[@data-ts]");
-                    var timestampStr =
-                        dateSpan?.GetAttributeValue("data-ts", string.Empty) ?? string.Empty;
+                    var timestampStr = dateSpan?.GetAttributeValue("data-ts", string.Empty) ?? string.Empty;
                     DateTime lastUpdated;
 
-                    if (
-                        !string.IsNullOrEmpty(timestampStr)
-                        && long.TryParse(timestampStr, out var unixTimestamp)
-                    )
+                    if (!string.IsNullOrEmpty(timestampStr) && long.TryParse(timestampStr, out var unixTimestamp))
                     {
                         lastUpdated = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).DateTime;
                     }
                     else
                     {
                         lastUpdated = DateTime.UtcNow;
-                        logger.LogWarning(
-                            "Failed to parse timestamp for player, using current time"
-                        );
+                        logger.LogWarning("Failed to parse timestamp for player, using current time");
                     }
 
                     var player = new Player
@@ -123,9 +101,7 @@ public class WowProgressService(
                         Realm = realm,
                         ItemLevel = itemLevel,
                         LastUpdated = lastUpdated,
-                        CharacterUrl = characterUrl.StartsWith("/")
-                            ? BaseUrl + characterUrl
-                            : characterUrl,
+                        CharacterUrl = characterUrl.StartsWith("/") ? BaseUrl + characterUrl : characterUrl,
                         Bio = "",
                         Source = LfgSource.WoWProgress,
                     };
@@ -138,10 +114,7 @@ public class WowProgressService(
                 }
             }
 
-            logger.LogInformation(
-                "Successfully parsed {Count} players from WoWProgress",
-                players.Count
-            );
+            logger.LogInformation("Successfully parsed {Count} players from WoWProgress", players.Count);
         }
         catch (Exception ex)
         {
@@ -151,17 +124,11 @@ public class WowProgressService(
         return players;
     }
 
-    public async Task<Player> GetPlayerDetailsAsync(
-        Player player,
-        CancellationToken cancellationToken = default
-    )
+    public async Task<Player> GetPlayerDetailsAsync(Player player, CancellationToken cancellationToken = default)
     {
         try
         {
-            logger.LogInformation(
-                "Fetching player details for {CharacterName} using FlareSolverr...",
-                player.CharacterName
-            );
+            logger.LogInformation("Fetching player details for {CharacterName} using FlareSolverr...", player.CharacterName);
 
             var html = await FetchWithFlareSolverrAsync(player.CharacterUrl, cancellationToken);
 
@@ -178,49 +145,34 @@ public class WowProgressService(
 
             if (registeredTo != null)
             {
-                var battletagSpan = registeredTo.SelectSingleNode(
-                    ".//span[@class='profileBattletag']"
-                );
+                var battletagSpan = registeredTo.SelectSingleNode(".//span[@class='profileBattletag']");
                 player.BattleTag = battletagSpan?.InnerText.Trim();
 
-                var languageDiv = registeredTo.SelectSingleNode(
-                    ".//div[@class='language' and contains(., 'Languages:')]"
-                );
+                var languageDiv = registeredTo.SelectSingleNode(".//div[@class='language' and contains(., 'Languages:')]");
                 if (languageDiv != null)
                 {
                     var languageText = languageDiv.InnerText.Replace("Languages:", "").Trim();
                     player.Languages = languageText;
                 }
 
-                var specsDiv = registeredTo.SelectSingleNode(
-                    ".//div[@class='language' and contains(., 'Specs playing:')]"
-                );
+                var specsDiv = registeredTo.SelectSingleNode(".//div[@class='language' and contains(., 'Specs playing:')]");
                 if (specsDiv != null)
                 {
                     var specsText = specsDiv.SelectSingleNode(".//strong")?.InnerText.Trim();
                     player.SpecsPlaying = specsText;
                 }
 
-                var commentaryDiv = registeredTo.SelectSingleNode(
-                    ".//div[@class='charCommentary']"
-                );
+                var commentaryDiv = registeredTo.SelectSingleNode(".//div[@class='charCommentary']");
                 if (commentaryDiv != null)
                 {
                     player.Bio = commentaryDiv.InnerText.Trim();
                 }
 
-                logger.LogInformation(
-                    "Successfully parsed details for {CharacterName}: BattleTag={BattleTag}",
-                    player.CharacterName,
-                    player.BattleTag
-                );
+                logger.LogInformation("Successfully parsed details for {CharacterName}: BattleTag={BattleTag}", player.CharacterName, player.BattleTag);
             }
             else
             {
-                logger.LogWarning(
-                    "No registeredTo div found for {CharacterName}. Character may not have a profile.",
-                    player.CharacterName
-                );
+                logger.LogWarning("No registeredTo div found for {CharacterName}. Character may not have a profile.", player.CharacterName);
             }
 
             var events = doc.DocumentNode.SelectNodes("//ul[@class='eventList']//li");
@@ -244,15 +196,11 @@ public class WowProgressService(
         return player;
     }
 
-    private async Task<string> FetchWithFlareSolverrAsync(
-        string url,
-        CancellationToken cancellationToken
-    )
+    private async Task<string> FetchWithFlareSolverrAsync(string url, CancellationToken cancellationToken)
     {
         try
         {
-            var flareSolverrUrl =
-                configuration.GetValue<string>("FlareSolverrUrl") ?? "http://192.168.10.66:8191/v1";
+            var flareSolverrUrl = configuration.GetValue<string>("FlareSolverrUrl") ?? "http://192.168.10.66:8191/v1";
 
             logger.LogInformation("Sending request to FlareSolverr for {Url}", url);
 
@@ -263,32 +211,19 @@ public class WowProgressService(
                 maxTimeout = 60000,
             };
 
-            var response = await httpClient.PostAsJsonAsync(
-                flareSolverrUrl,
-                request,
-                cancellationToken
-            );
+            var response = await httpClient.PostAsJsonAsync(flareSolverrUrl, request, cancellationToken);
 
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<FlareSolverrResponse>(
-                cancellationToken: cancellationToken
-            );
+            var result = await response.Content.ReadFromJsonAsync<FlareSolverrResponse>(cancellationToken: cancellationToken);
 
             if (result?.Status != "ok" || result.Solution == null)
             {
-                logger.LogError(
-                    "FlareSolverr request failed. Status: {Status}, Message: {Message}",
-                    result?.Status,
-                    result?.Message
-                );
+                logger.LogError("FlareSolverr request failed. Status: {Status}, Message: {Message}", result?.Status, result?.Message);
                 return string.Empty;
             }
 
-            logger.LogInformation(
-                "Successfully fetched HTML from FlareSolverr (Status: {StatusCode})",
-                result.Solution.Status
-            );
+            logger.LogInformation("Successfully fetched HTML from FlareSolverr (Status: {StatusCode})", result.Solution.Status);
 
             return result.Solution.Response;
         }

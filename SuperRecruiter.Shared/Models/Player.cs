@@ -21,8 +21,7 @@ public class Player
 
     public override string ToString()
     {
-        return $"{CharacterName} - {Class} ({ItemLevel:F2}) - {Realm}"
-            + $" - Updated: {LastUpdated:g}";
+        return $"{CharacterName} - {Class} ({ItemLevel:F2}) - {Realm}" + $" - Updated: {LastUpdated:g}";
     }
 
     private static string ExtractRealmSlug(string realm)

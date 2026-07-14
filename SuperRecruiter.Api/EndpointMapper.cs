@@ -19,20 +19,9 @@ public static class EndpointMapper
     {
         api.MapGet(
             "/players",
-            async (
-                PlayerDatabaseService db,
-                PlayerStatus? status,
-                string? playerClass,
-                int? limit,
-                int? offset
-            ) =>
+            async (PlayerDatabaseService db, PlayerStatus? status, string? playerClass, int? limit, int? offset) =>
             {
-                var players = await db.GetPlayersAsync(
-                    status,
-                    playerClass,
-                    limit ?? 50,
-                    offset ?? 0
-                );
+                var players = await db.GetPlayersAsync(status, playerClass, limit ?? 50, offset ?? 0);
                 return Results.Ok(players);
             }
         );
@@ -75,18 +64,9 @@ public static class EndpointMapper
 
         api.MapPut(
             "/players/{realmSlug}/{characterName}/status",
-            async (
-                PlayerDatabaseService db,
-                string realmSlug,
-                string characterName,
-                UpdatePlayerStatusRequest request
-            ) =>
+            async (PlayerDatabaseService db, string realmSlug, string characterName, UpdatePlayerStatusRequest request) =>
             {
-                var player = await db.UpdatePlayerStatusByCharacterAndRealmAsync(
-                    characterName,
-                    realmSlug,
-                    request.Status
-                );
+                var player = await db.UpdatePlayerStatusByCharacterAndRealmAsync(characterName, realmSlug, request.Status);
                 return player is not null ? Results.Ok(player) : Results.NotFound();
             }
         );
@@ -142,11 +122,7 @@ public static class EndpointMapper
             "/players/seen",
             async (PlayerDatabaseService db, SeenPlayerRequest request) =>
             {
-                await db.AddSeenPlayerAsync(
-                    request.CharacterName,
-                    request.Realm,
-                    request.LastUpdated
-                );
+                await db.AddSeenPlayerAsync(request.CharacterName, request.Realm, request.LastUpdated);
                 return Results.Ok();
             }
         );
@@ -155,9 +131,7 @@ public static class EndpointMapper
             "/players/seen/bulk",
             async (PlayerDatabaseService db, List<SeenPlayerRequest> requests) =>
             {
-                var batch = requests
-                    .Select(r => (r.CharacterName, r.Realm, r.LastUpdated))
-                    .ToList();
+                var batch = requests.Select(r => (r.CharacterName, r.Realm, r.LastUpdated)).ToList();
                 await db.BulkAddSeenPlayersAsync(batch);
                 return Results.Ok();
             }

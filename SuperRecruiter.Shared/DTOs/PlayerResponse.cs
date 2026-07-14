@@ -23,6 +23,7 @@ public class PlayerResponse
     public PlayerStatus Status { get; set; }
     public ulong? DiscordMessageId { get; set; }
     public ulong? DiscordChannelId { get; set; }
+    public int CurrentTierMythicKillCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

@@ -113,6 +113,19 @@ On first load, click the lock icon in the bottom-right corner and paste your API
   - `seen_players`
 - Player status is stored on `players.status` (including blacklisted state)
 
+## Database Migrations
+
+### Add Mythic Kill Count Column
+
+If you have an existing database and need to add the `current_tier_mythic_kill_count` column, run this migration:
+
+```sql
+ALTER TABLE players
+ADD COLUMN current_tier_mythic_kill_count INTEGER NOT NULL DEFAULT 0;
+```
+
+Run this directly in PostgreSQL via `psql`, pgAdmin, or any SQL client connected to your Super Recruiter database.
+
 ## Useful Commands
 
 ```bash

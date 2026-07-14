@@ -14,17 +14,13 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
 
     public async Task<List<PlayerResponse>> GetAllPlayersAsync()
     {
-        var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>(
-            "players?limit=10000&offset=0"
-        );
+        var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>("players?limit=10000&offset=0");
         return response ?? [];
     }
 
     public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
     {
-        var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>(
-            "players/cache"
-        );
+        var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>("players/cache");
         return response ?? [];
     }
 
@@ -34,11 +30,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            logger.LogError(
-                "CreatePlayer failed with status code {StatusCode}: {ResponseContent}",
-                response.StatusCode,
-                responseContent
-            );
+            logger.LogError("CreatePlayer failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
             throw new Exception($"Failed to create player: {responseContent}");
         }
         return (await response.Content.ReadFromJsonAsync<PlayerResponse>())!;
@@ -46,20 +38,13 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
 
     public async Task<PlayerResponse?> UpdatePlayerStatusAsync(int playerId, PlayerStatus status)
     {
-        var response = await httpClient.PutAsJsonAsync(
-            $"players/{playerId}/status",
-            new UpdatePlayerStatusRequest { Status = status }
-        );
+        var response = await httpClient.PutAsJsonAsync($"players/{playerId}/status", new UpdatePlayerStatusRequest { Status = status });
         if (!response.IsSuccessStatusCode)
             return null;
         return await response.Content.ReadFromJsonAsync<PlayerResponse>();
     }
 
-    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAsync(
-        string realmSlug,
-        string characterName,
-        PlayerStatus status
-    )
+    public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAsync(string realmSlug, string characterName, PlayerStatus status)
     {
         var response = await httpClient.PutAsJsonAsync(
             $"players/{Uri.EscapeDataString(realmSlug)}/{Uri.EscapeDataString(characterName)}/status",
@@ -74,17 +59,13 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
 
     public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
     {
-        var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>(
-            "players/seen/all"
-        );
+        var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>("players/seen/all");
         return response ?? [];
     }
 
     public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
     {
-        var response = await httpClient.GetFromJsonAsync<LastSeenResponse>(
-            $"players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}"
-        );
+        var response = await httpClient.GetFromJsonAsync<LastSeenResponse>($"players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}");
         return response?.LastSeenAt;
     }
 
@@ -102,11 +83,7 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            logger.LogError(
-                "AddSeenPlayer failed with status code {StatusCode}: {ResponseContent}",
-                response.StatusCode,
-                responseContent
-            );
+            logger.LogError("AddSeenPlayer failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
             throw new Exception($"Failed to add seen player: {responseContent}");
         }
     }
@@ -121,29 +98,18 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            logger.LogError(
-                "Bulk add of seen players failed with status code {StatusCode}: {ResponseContent}",
-                response.StatusCode,
-                responseContent
-            );
+            logger.LogError("Bulk add of seen players failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
             throw new Exception($"Failed to bulk add seen players: {responseContent}");
         }
     }
 
     public async Task CleanupSeenPlayersAsync(int daysToKeep = 30)
     {
-        var response = await httpClient.PostAsync(
-            $"players/seen/cleanup?daysToKeep={daysToKeep}",
-            null
-        );
+        var response = await httpClient.PostAsync($"players/seen/cleanup?daysToKeep={daysToKeep}", null);
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();
-            logger.LogError(
-                "CleanupSeenPlayers failed with status code {StatusCode}: {ResponseContent}",
-                response.StatusCode,
-                responseContent
-            );
+            logger.LogError("CleanupSeenPlayers failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
             throw new Exception($"Failed to cleanup seen players: {responseContent}");
         }
     }

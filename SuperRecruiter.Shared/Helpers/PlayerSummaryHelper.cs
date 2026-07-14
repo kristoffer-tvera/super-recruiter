@@ -28,14 +28,9 @@ public static class PlayerSummaryHelper
         if (zoneRankings == null || zoneRankings.AllStars == null)
             return $"{header}\n- No WarcraftLogs data";
 
-        var best =
-            $"\n- **Best** Perf. Avg {zoneRankings.BestPerformanceAverage:F0}% |  **Median** Perf. Avg {zoneRankings.MedianPerformanceAverage:F0}%";
+        var best = $"\n- **Best** Perf. Avg {zoneRankings.BestPerformanceAverage:F0}% |  **Median** Perf. Avg {zoneRankings.MedianPerformanceAverage:F0}%";
 
-        var allStars = zoneRankings
-            .AllStars.Select(a =>
-                $"**{a.Spec}** | {a.RankPercent:F0}% | ({a.Points:F0} out of {a.PossiblePoints:F0})"
-            )
-            .ToList();
+        var allStars = zoneRankings.AllStars.Select(a => $"**{a.Spec}** | {a.RankPercent:F0}% | ({a.Points:F0} out of {a.PossiblePoints:F0})").ToList();
 
         return header + best + "\n- " + string.Join("\n- ", allStars);
     }

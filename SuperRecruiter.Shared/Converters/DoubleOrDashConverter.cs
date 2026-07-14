@@ -5,11 +5,7 @@ namespace SuperRecruiter.Shared.Converters;
 
 public class DoubleOrDashConverter : JsonConverter<double>
 {
-    public override double Read(
-        ref Utf8JsonReader reader,
-        Type typeToConvert,
-        JsonSerializerOptions options
-    )
+    public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Number)
         {

@@ -31,8 +31,7 @@ app.Use(
     async (context, next) =>
     {
         var path = context.Request.Path;
-        var isApiPath =
-            path.StartsWithSegments("/players") || path.StartsWithSegments("/api/players");
+        var isApiPath = path.StartsWithSegments("/players") || path.StartsWithSegments("/api/players");
         if (!isApiPath)
         {
             await next();
@@ -42,9 +41,7 @@ app.Use(
         if (string.IsNullOrWhiteSpace(configuredApiKey))
         {
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            await context.Response.WriteAsJsonAsync(
-                new { error = "API key is not configured on server" }
-            );
+            await context.Response.WriteAsJsonAsync(new { error = "API key is not configured on server" });
             return;
         }
 
