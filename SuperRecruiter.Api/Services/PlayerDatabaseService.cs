@@ -199,6 +199,7 @@ public class PlayerDatabaseService
                 guild_history = @GuildHistory, raiderio_summary = @RaiderIoSummary,
                 warcraftlogs_summary = @WarcraftLogsSummary,
                 discord_message_id = @DiscordMessageId, discord_channel_id = @DiscordChannelId,
+                current_tier_mythic_kill_count = @CurrentTierMythicKillCount,
                 updated_at = @Now
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,

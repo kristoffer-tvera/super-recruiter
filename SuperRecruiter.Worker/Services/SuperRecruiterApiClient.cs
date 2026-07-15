@@ -12,11 +12,11 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
 {
     // --- Players ---
 
-    public async Task<List<PlayerResponse>> GetAllPlayersAsync()
-    {
-        var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>("players?limit=10000&offset=0");
-        return response ?? [];
-    }
+    // public async Task<List<PlayerResponse>> GetAllPlayersAsync()
+    // {
+    //     var response = await httpClient.GetFromJsonAsync<List<PlayerResponse>>("players?limit=10000&offset=0");
+    //     return response ?? [];
+    // }
 
     public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
     {
@@ -36,13 +36,13 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return (await response.Content.ReadFromJsonAsync<PlayerResponse>())!;
     }
 
-    public async Task<PlayerResponse?> UpdatePlayerStatusAsync(int playerId, PlayerStatus status)
-    {
-        var response = await httpClient.PutAsJsonAsync($"players/{playerId}/status", new UpdatePlayerStatusRequest { Status = status });
-        if (!response.IsSuccessStatusCode)
-            return null;
-        return await response.Content.ReadFromJsonAsync<PlayerResponse>();
-    }
+    // public async Task<PlayerResponse?> UpdatePlayerStatusAsync(int playerId, PlayerStatus status)
+    // {
+    //     var response = await httpClient.PutAsJsonAsync($"players/{playerId}/status", new UpdatePlayerStatusRequest { Status = status });
+    //     if (!response.IsSuccessStatusCode)
+    //         return null;
+    //     return await response.Content.ReadFromJsonAsync<PlayerResponse>();
+    // }
 
     public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAsync(string realmSlug, string characterName, PlayerStatus status)
     {
@@ -63,30 +63,30 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return response ?? [];
     }
 
-    public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
-    {
-        var response = await httpClient.GetFromJsonAsync<LastSeenResponse>($"players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}");
-        return response?.LastSeenAt;
-    }
+    // public async Task<DateTime?> GetLastSeenAtAsync(string characterName, string realm)
+    // {
+    //     var response = await httpClient.GetFromJsonAsync<LastSeenResponse>($"players/seen?name={Uri.EscapeDataString(characterName)}&realm={Uri.EscapeDataString(realm)}");
+    //     return response?.LastSeenAt;
+    // }
 
-    public async Task AddSeenPlayerAsync(string characterName, string realm, DateTime lastUpdated)
-    {
-        var response = await httpClient.PostAsJsonAsync(
-            "players/seen",
-            new SeenPlayerRequest
-            {
-                CharacterName = characterName,
-                Realm = realm,
-                LastUpdated = lastUpdated,
-            }
-        );
-        if (!response.IsSuccessStatusCode)
-        {
-            var responseContent = await response.Content.ReadAsStringAsync();
-            logger.LogError("AddSeenPlayer failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
-            throw new Exception($"Failed to add seen player: {responseContent}");
-        }
-    }
+    // public async Task AddSeenPlayerAsync(string characterName, string realm, DateTime lastUpdated)
+    // {
+    //     var response = await httpClient.PostAsJsonAsync(
+    //         "players/seen",
+    //         new SeenPlayerRequest
+    //         {
+    //             CharacterName = characterName,
+    //             Realm = realm,
+    //             LastUpdated = lastUpdated,
+    //         }
+    //     );
+    //     if (!response.IsSuccessStatusCode)
+    //     {
+    //         var responseContent = await response.Content.ReadAsStringAsync();
+    //         logger.LogError("AddSeenPlayer failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
+    //         throw new Exception($"Failed to add seen player: {responseContent}");
+    //     }
+    // }
 
     public async Task BulkAddSeenPlayersAsync(List<SeenPlayerRequest> requests)
     {
@@ -114,5 +114,5 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         }
     }
 
-    private record LastSeenResponse(DateTime? LastSeenAt);
+    // private record LastSeenResponse(DateTime? LastSeenAt);
 }

@@ -23,7 +23,7 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
 
             var normalizedRealm = realm.ToLowerInvariant().Replace(" ", "-");
 
-            var tierSlugs = new[] { "tier-mn-1", "manaforge-omega", "liberation-of-undermine", "nerubar-palace" };
+            var tierSlugs = new[] { "the-venomous-abyss", "tier-mn-1", "manaforge-omega", "liberation-of-undermine", "nerubar-palace" };
 
             var queryStringParameters = new Dictionary<string, string>
             {
