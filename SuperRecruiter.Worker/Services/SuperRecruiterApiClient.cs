@@ -79,5 +79,12 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         }
     }
 
+    // --- Admin config ---
+
+    public async Task<AdminConfigResponse?> GetAdminConfigAsync(CancellationToken cancellationToken = default)
+    {
+        return await httpClient.GetFromJsonAsync<AdminConfigResponse>("config", cancellationToken);
+    }
+
     // private record LastSeenResponse(DateTime? LastSeenAt);
 }

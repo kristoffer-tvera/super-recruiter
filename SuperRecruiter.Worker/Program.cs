@@ -24,6 +24,9 @@ builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
 // Player cache (refreshed each scan cycle)
 builder.Services.AddSingleton<PlayerCacheService>();
 
+// Admin filter config (refreshed hourly)
+builder.Services.AddSingleton<AdminFilterService>();
+
 // Enrichment + persistence pipeline, shared by the scraper and the Discord bot
 builder.Services.AddTransient<PlayerIngestionService>();
 

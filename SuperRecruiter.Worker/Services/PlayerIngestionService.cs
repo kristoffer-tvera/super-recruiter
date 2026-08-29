@@ -14,6 +14,7 @@ public class PlayerIngestionService(
     RaiderIOService raiderIOService,
     WarcraftLogsService warcraftLogsService,
     SuperRecruiterApiClient apiClient,
+    AdminFilterService adminFilterService,
     DiscordBotService discordBotService
 )
 {
@@ -41,7 +42,11 @@ public class PlayerIngestionService(
 
         createRequest.CurrentTierMythicKillCount = raiderIoData?.Raid_progression?.Sum(raid => raid.Value.Mythic_bosses_killed) ?? 0;
 
-        var messageId = await discordBotService.SendPlayerMessageAsync(detailedPlayer, raiderIoData);
+        // Manual adds are vouched for by an officer, so they bypass the admin filters.
+        var shouldPost =
+            player.Source == LfgSource.Manual || await adminFilterService.ShouldPostToDiscordAsync(detailedPlayer, createRequest.CurrentTierMythicKillCount, cancellationToken);
+
+        var messageId = shouldPost ? await discordBotService.SendPlayerMessageAsync(detailedPlayer, raiderIoData) : null;
 
         if (messageId.HasValue)
         {
