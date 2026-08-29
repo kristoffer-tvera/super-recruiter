@@ -21,7 +21,6 @@ public class ScraperWorker(
 
         logger.LogInformation("Scraper worker starting. Polling interval: {Interval} minutes", pollingIntervalMinutes);
 
-        // Wait for Discord bot to be fully ready before starting the scan loop
         logger.LogInformation("Waiting for Discord bot to be ready...");
         var botReady = await discordBotService.WaitUntilReadyAsync(TimeSpan.FromSeconds(30));
         if (!botReady)
@@ -57,17 +56,16 @@ public class ScraperWorker(
     {
         logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-        var refreshPlayers = cycleCount % 4 == 0;
-        await playerCache.RefreshAsync(refreshPlayers);
+        var shouldRefreshPlayerCache = cycleCount % 4 == 0;
+        await playerCache.RefreshAsync(shouldRefreshPlayerCache);
 
         var nextCycleCount = cycleCount + 1;
         var players = await GetMergedPlayersAsync(stoppingToken);
         await ProcessDiscoveredPlayersAsync(players, stoppingToken);
 
-        // Flush all queued seen players in a single bulk operation
         await playerCache.FlushSeenPlayerBatchAsync();
 
-        // Run cleanup every 6 cycles (every 6 hours at 30-min intervals)
+        // Six cycles is three hours with the default 30-minute interval.
         if (nextCycleCount % 6 == 0)
         {
             logger.LogInformation("Running seen player cleanup");
@@ -79,11 +77,11 @@ public class ScraperWorker(
 
     private async Task<List<Player>> GetMergedPlayersAsync(CancellationToken stoppingToken)
     {
-        var playersFromWoWProgress = await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
-        var playersFromRaiderIo = await raiderIOService.GetLfgPlayers(stoppingToken);
+        var wowProgressPlayers = await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
+        var raiderIoPlayers = await raiderIOService.GetLfgPlayers(stoppingToken);
 
-        return playersFromWoWProgress
-            .Concat(playersFromRaiderIo)
+        return wowProgressPlayers
+            .Concat(raiderIoPlayers)
             .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
             .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
             .ToList();
@@ -97,24 +95,24 @@ public class ScraperWorker(
             return;
         }
 
-        var newPlayers = await FilterPlayersAsync(players, stoppingToken);
-        if (newPlayers?.Count > 0)
+        var newPlayers = FilterNewPlayers(players, stoppingToken);
+        if (newPlayers.Count == 0)
         {
-            logger.LogInformation("Found {NewCount} new player(s) out of {TotalCount} total", newPlayers.Count, players.Count);
-
-            foreach (var player in newPlayers)
-            {
-                await playerIngestionService.ProcessPlayerAsync(player, stoppingToken);
-            }
+            logger.LogInformation("No new players found");
             return;
         }
 
-        logger.LogInformation("No new players found");
+        logger.LogInformation("Found {NewCount} new player(s) out of {TotalCount} total", newPlayers.Count, players.Count);
+
+        foreach (var player in newPlayers)
+        {
+            await playerIngestionService.ProcessPlayerAsync(player, stoppingToken);
+        }
     }
 
-    public async Task<List<Player>?> FilterPlayersAsync(List<Player> players, CancellationToken cancellationToken)
+    private List<Player> FilterNewPlayers(IEnumerable<Player> players, CancellationToken cancellationToken)
     {
-        var filteredPlayers = new List<Player>();
+        var newPlayers = new List<Player>();
 
         foreach (var player in players)
         {
@@ -142,9 +140,10 @@ public class ScraperWorker(
                 }
 
                 playerCache.QueueSeenPlayer(player.CharacterName, player.Realm, player.LastUpdated);
-                filteredPlayers.Add(player);
+                newPlayers.Add(player);
             }
         }
-        return filteredPlayers;
+
+        return newPlayers;
     }
 }
