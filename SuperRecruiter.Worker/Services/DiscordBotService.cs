@@ -1,5 +1,6 @@
 using Discord;
 using Discord.WebSocket;
+using SuperRecruiter.Shared.Constants;
 using SuperRecruiter.Shared.Helpers;
 using SuperRecruiter.Shared.Models;
 
@@ -11,12 +12,16 @@ namespace SuperRecruiter.Worker.Services;
 /// </summary>
 public class DiscordBotService : IHostedService
 {
+    private const ulong OfficerRoleId = 420722779432943616;
+    private const string AddPlayerCommandName = "add-player";
+
     private readonly DiscordSocketClient _client;
     private readonly ILogger<DiscordBotService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IServiceProvider _serviceProvider;
     private readonly string? _botToken;
     private readonly ulong _channelId;
+    private readonly ulong _guildId;
     private readonly string _frontendBaseUrl;
     private readonly TaskCompletionSource _readyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -27,6 +32,7 @@ public class DiscordBotService : IHostedService
         _serviceProvider = serviceProvider;
         _botToken = configuration["Discord:BotToken"];
         _channelId = configuration.GetValue<ulong>("Discord:ChannelId");
+        _guildId = configuration.GetValue<ulong>("Discord:GuildId");
         _frontendBaseUrl = configuration["FrontendBaseUrl"] ?? throw new InvalidOperationException("FrontendBaseUrl is not configured");
 
         _client = new DiscordSocketClient(new DiscordSocketConfig { GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages, LogLevel = LogSeverity.Info });
@@ -70,15 +76,57 @@ public class DiscordBotService : IHostedService
         return Task.CompletedTask;
     }
 
-    private Task ReadyAsync()
+    private async Task ReadyAsync()
     {
         _logger.LogInformation("Discord bot connected as {User}", _client.CurrentUser?.Username);
         _logger.LogInformation("Discord bot guilds: {GuildCount} | Cached channels: {ChannelCount}", _client.Guilds.Count, _client.Guilds.SelectMany(g => g.Channels).Count());
 
         var targetChannel = _client.GetChannel(_channelId);
 
+        await RegisterSlashCommandsAsync();
+
         _readyTcs.TrySetResult();
-        return Task.CompletedTask;
+    }
+
+    private async Task RegisterSlashCommandsAsync()
+    {
+        var command = new SlashCommandBuilder()
+            .WithName(AddPlayerCommandName)
+            .WithDescription("Manually add a character to Super Recruiter")
+            .AddOption("character", ApplicationCommandOptionType.String, "Character name", isRequired: true)
+            .AddOption(
+                new SlashCommandOptionBuilder()
+                    .WithName("realm")
+                    .WithDescription("EU realm")
+                    .WithType(ApplicationCommandOptionType.String)
+                    .WithRequired(true)
+                    .WithAutocomplete(true)
+            )
+            .Build();
+
+        try
+        {
+            // Guild commands register instantly; global commands can take up to an hour to propagate.
+            var guild = _guildId != 0 ? _client.GetGuild(_guildId) : null;
+
+            if (guild != null)
+            {
+                await guild.CreateApplicationCommandAsync(command);
+                _logger.LogInformation("Registered /{Command} for guild {GuildId}", AddPlayerCommandName, _guildId);
+            }
+            else
+            {
+                if (_guildId != 0)
+                    _logger.LogWarning("Discord:GuildId {GuildId} not found in the bot's guilds — registering /{Command} globally instead", _guildId, AddPlayerCommandName);
+
+                await _client.CreateGlobalApplicationCommandAsync(command);
+                _logger.LogInformation("Registered /{Command} globally", AddPlayerCommandName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to register the /{Command} slash command", AddPlayerCommandName);
+        }
     }
 
     /// <summary>
@@ -126,9 +174,14 @@ public class DiscordBotService : IHostedService
         {
             $"[Armory](https://worldofwarcraft.blizzard.com/en-gb/character/eu/{player.RealmSlug}/{player.CharacterName})",
             $"[RaiderIO](https://raider.io/characters/eu/{player.RealmSlug}/{player.CharacterName})",
-            $"[WoWProgress]({player.CharacterUrl})",
             $"[WCL](https://www.warcraftlogs.com/character/eu/{player.RealmSlug}/{player.CharacterName})",
         };
+
+        // Manually added players have no WoWProgress listing.
+        if (!string.IsNullOrWhiteSpace(player.CharacterUrl))
+        {
+            links.Insert(2, $"[WoWProgress]({player.CharacterUrl})");
+        }
 
         var currentTierExp = PlayerSummaryHelper.GetCurrentExpansionProgressForDiscord(raiderIoProfile);
 
@@ -177,12 +230,208 @@ public class DiscordBotService : IHostedService
 
     private async Task InteractionCreatedAsync(SocketInteraction interaction)
     {
-        if (interaction is not SocketMessageComponent component)
+        switch (interaction)
+        {
+            case SocketAutocompleteInteraction autocomplete:
+                await HandleRealmAutocompleteAsync(autocomplete);
+                break;
+            case SocketSlashCommand slashCommand when slashCommand.Data.Name == AddPlayerCommandName:
+                await HandleAddPlayerCommandAsync(slashCommand);
+                break;
+            case SocketMessageComponent component when component.Data.CustomId.StartsWith("manualadd:"):
+                await HandleManualAddComponentAsync(component);
+                break;
+            case SocketMessageComponent component:
+                await HandleStatusComponentAsync(component);
+                break;
+        }
+    }
+
+    private static bool HasOfficerRole(SocketUser user) => user is SocketGuildUser guildUser && guildUser.Roles.Any(r => r.Id == OfficerRoleId);
+
+    private async Task HandleRealmAutocompleteAsync(SocketAutocompleteInteraction interaction)
+    {
+        if (interaction.Data.CommandName != AddPlayerCommandName || interaction.Data.Current.Name != "realm")
             return;
 
-        var officerRoleId = (ulong)420722779432943616;
+        var term = interaction.Data.Current.Value?.ToString();
+        var results = EuRealms.Search(term).Select(realm => new AutocompleteResult(realm.Name, realm.Name));
 
-        if (component.User is not SocketGuildUser user || !user.Roles.Any(r => r.Id == officerRoleId))
+        await interaction.RespondAsync(results);
+    }
+
+    private async Task HandleAddPlayerCommandAsync(SocketSlashCommand command)
+    {
+        if (!HasOfficerRole(command.User))
+        {
+            await command.RespondAsync("You don't have permission to perform this action.", ephemeral: true);
+            return;
+        }
+
+        // Raider.IO lookups exceed Discord's 3s response window.
+        await command.DeferAsync(ephemeral: true);
+
+        var characterInput = command.Data.Options.FirstOrDefault(o => o.Name == "character")?.Value?.ToString()?.Trim() ?? string.Empty;
+        var realmInput = command.Data.Options.FirstOrDefault(o => o.Name == "realm")?.Value?.ToString()?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(characterInput) || characterInput.Any(c => !char.IsLetter(c)))
+        {
+            await command.FollowupAsync("Character name must contain letters only.", ephemeral: true);
+            return;
+        }
+
+        var realm = EuRealms.Find(realmInput);
+        if (realm == null)
+        {
+            await command.FollowupAsync($"Unknown EU realm: **{realmInput}**. Pick one from the suggestions.", ephemeral: true);
+            return;
+        }
+
+        var characterName = char.ToUpperInvariant(characterInput[0]) + characterInput[1..].ToLowerInvariant();
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var apiClient = scope.ServiceProvider.GetRequiredService<SuperRecruiterApiClient>();
+            var raiderIoService = scope.ServiceProvider.GetRequiredService<RaiderIOService>();
+
+            var existing = await apiClient.GetPlayerByCharacterAsync(realm.Slug, characterName);
+            if (existing != null)
+            {
+                await command.FollowupAsync(
+                    $"**{existing.CharacterName}-{existing.Realm}** is already in the system with status **{existing.Status}**.\n{_frontendBaseUrl}/{realm.Slug}/{characterName}",
+                    ephemeral: true
+                );
+                return;
+            }
+
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName);
+            if (profile == null)
+            {
+                await command.FollowupAsync($"No Raider.IO profile found for **{characterName}-{realm.Name}**. Check the spelling and realm.", ephemeral: true);
+                return;
+            }
+
+            var progress = PlayerSummaryHelper.GetCurrentExpansionProgressForDiscord(profile);
+
+            var embed = new EmbedBuilder()
+                .WithTitle($"{profile.Name}-{realm.Name}")
+                .WithColor(new Color((uint)PlayerSummaryHelper.ClassColorFromClassName(profile.Class)))
+                .WithThumbnailUrl(profile.Thumbnail_url)
+                .AddField("Class / Spec", $"{profile.Class} | {profile.Active_spec_name}", inline: true)
+                .AddField("Item level", $"{profile.Gear?.Item_level_equipped ?? 0:F0}", inline: true)
+                .AddField("Progress", string.IsNullOrWhiteSpace(progress) ? "No raid data" : progress)
+                .Build();
+
+            var components = new ComponentBuilder()
+                .WithButton("Add player", $"manualadd:confirm:{realm.Slug}:{characterName}", ButtonStyle.Success)
+                .WithButton("Cancel", $"manualadd:cancel:{realm.Slug}:{characterName}", ButtonStyle.Secondary)
+                .Build();
+
+            await command.FollowupAsync("Is this the right character?", embed: embed, components: components, ephemeral: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling /{Command} for {Character}-{Realm}", AddPlayerCommandName, characterName, realm.Slug);
+            await command.FollowupAsync("An error occurred looking up that character.", ephemeral: true);
+        }
+    }
+
+    private async Task HandleManualAddComponentAsync(SocketMessageComponent component)
+    {
+        if (!HasOfficerRole(component.User))
+        {
+            await component.RespondAsync("You don't have permission to perform this action.", ephemeral: true);
+            return;
+        }
+
+        // Custom ID: "manualadd:{action}:{realmSlug}:{characterName}"
+        var parts = component.Data.CustomId.Split(':');
+        if (parts.Length != 4)
+            return;
+
+        var action = parts[1];
+        var realmSlug = parts[2];
+        var characterName = parts[3];
+
+        if (action == "cancel")
+        {
+            await component.UpdateAsync(msg =>
+            {
+                msg.Content = "Cancelled.";
+                msg.Embed = null;
+                msg.Components = new ComponentBuilder().Build();
+            });
+            return;
+        }
+
+        if (action != "confirm")
+            return;
+
+        var realm = EuRealms.Find(realmSlug);
+        if (realm == null)
+        {
+            await component.RespondAsync($"Unknown EU realm: **{realmSlug}**.", ephemeral: true);
+            return;
+        }
+
+        await component.UpdateAsync(msg =>
+        {
+            msg.Content = $"Adding **{characterName}-{realm.Name}**...";
+            msg.Embed = null;
+            msg.Components = new ComponentBuilder().Build();
+        });
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var raiderIoService = scope.ServiceProvider.GetRequiredService<RaiderIOService>();
+            var ingestionService = scope.ServiceProvider.GetRequiredService<PlayerIngestionService>();
+
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName);
+            if (profile == null)
+            {
+                await component.ModifyOriginalResponseAsync(msg => msg.Content = $"No Raider.IO profile found for **{characterName}-{realm.Name}** anymore.");
+                return;
+            }
+
+            var player = new Player
+            {
+                CharacterName = profile.Name,
+                Class = profile.Class,
+                Realm = realm.Name,
+                ItemLevel = profile.Gear?.Item_level_equipped ?? 0,
+                LastUpdated = DateTime.UtcNow,
+                CharacterUrl = string.Empty,
+                SpecsPlaying = profile.Active_spec_name,
+                Bio = $"Manually added by {component.User.Username}.",
+                Source = LfgSource.Manual,
+            };
+
+            var created = await ingestionService.ProcessPlayerAsync(player, CancellationToken.None);
+
+            if (created == null)
+            {
+                await component.ModifyOriginalResponseAsync(msg => msg.Content = $"Could not add **{characterName}-{realm.Name}**.");
+                return;
+            }
+
+            _logger.LogInformation("Player {Character}-{Realm} manually added by {User}", characterName, realm.Slug, component.User.Username);
+
+            await component.ModifyOriginalResponseAsync(msg =>
+                msg.Content = $"Added **{created.CharacterName}-{created.Realm}**.\n{_frontendBaseUrl}/{realm.Slug}/{created.CharacterName}"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error manually adding player {Character}-{Realm}", characterName, realmSlug);
+            await component.ModifyOriginalResponseAsync(msg => msg.Content = "An error occurred while adding the player.");
+        }
+    }
+
+    private async Task HandleStatusComponentAsync(SocketMessageComponent component)
+    {
+        if (!HasOfficerRole(component.User))
         {
             await component.RespondAsync("You don't have permission to perform this action.", ephemeral: true);
             return;

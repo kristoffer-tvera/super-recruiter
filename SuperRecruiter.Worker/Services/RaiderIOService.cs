@@ -31,7 +31,7 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
                 { "region", region },
                 { "realm", normalizedRealm },
                 { "name", characterName },
-                { "fields", $"raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', tierSlugs)}" },
+                { "fields", $"gear,raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', tierSlugs)}" },
             };
 
             var url = $"{BaseUrl}/v1/characters/profile?{string.Join('&', queryStringParameters.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"))}";

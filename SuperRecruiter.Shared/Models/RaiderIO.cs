@@ -15,9 +15,16 @@ public class RaiderIOProfile
     public string Region { get; set; } = string.Empty;
     public string Thumbnail_url { get; set; } = string.Empty;
     public string Profile_url { get; set; } = string.Empty;
+    public RaiderIOGear? Gear { get; set; }
     public Dictionary<string, RaidTier>? Raid_progression { get; set; }
     public List<string>? Raid_progression_summary { get; set; }
     public List<RaidTierCurve>? Raid_achievement_curve { get; set; }
+}
+
+public class RaiderIOGear
+{
+    public double Item_level_equipped { get; set; }
+    public double Item_level_total { get; set; }
 }
 
 public class RaidTier

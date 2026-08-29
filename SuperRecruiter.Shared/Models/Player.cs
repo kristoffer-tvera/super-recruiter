@@ -1,11 +1,13 @@
 namespace SuperRecruiter.Shared.Models;
 
+using SuperRecruiter.Shared.Helpers;
+
 public class Player
 {
     public string CharacterName { get; set; } = string.Empty;
     public string Class { get; set; } = string.Empty;
     public string Realm { get; set; } = string.Empty;
-    public string RealmSlug => ExtractRealmSlug(Realm);
+    public string RealmSlug => RealmSlugHelper.ToSlug(Realm);
     public double ItemLevel { get; set; }
     public DateTime LastUpdated { get; set; }
     public string CharacterUrl { get; set; } = string.Empty;
@@ -23,15 +25,11 @@ public class Player
     {
         return $"{CharacterName} - {Class} ({ItemLevel:F2}) - {Realm}" + $" - Updated: {LastUpdated:g}";
     }
-
-    private static string ExtractRealmSlug(string realm)
-    {
-        return realm.ToLower().Replace(" ", "-").Replace("'", "");
-    }
 }
 
 public enum LfgSource
 {
     WoWProgress,
     RaiderIO,
+    Manual,
 }

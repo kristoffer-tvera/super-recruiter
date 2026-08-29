@@ -24,6 +24,9 @@ builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
 // Player cache (refreshed each scan cycle)
 builder.Services.AddSingleton<PlayerCacheService>();
 
+// Enrichment + persistence pipeline, shared by the scraper and the Discord bot
+builder.Services.AddTransient<PlayerIngestionService>();
+
 // Discord bot (singleton — maintains gateway connection)
 builder.Services.AddSingleton<DiscordBotService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordBotService>());
