@@ -31,8 +31,10 @@ app.Use(
     async (context, next) =>
     {
         var path = context.Request.Path;
-        var isApiPath = path.StartsWithSegments("/players") || path.StartsWithSegments("/api/players");
-        if (!isApiPath)
+
+        // Everything is key-protected except the docs, so new endpoints are secured by default.
+        var isPublicPath = path == "/" || path.StartsWithSegments("/scalar") || path.StartsWithSegments("/openapi");
+        if (isPublicPath)
         {
             await next();
             return;

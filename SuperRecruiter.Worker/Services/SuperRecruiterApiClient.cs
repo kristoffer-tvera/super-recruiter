@@ -86,5 +86,32 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return await httpClient.GetFromJsonAsync<AdminConfigResponse>("config", cancellationToken);
     }
 
+    // --- Chat ---
+
+    /// <summary>
+    /// Returns null instead of throwing, so a failed AI call can fall back to a canned Discord reply.
+    /// </summary>
+    public async Task<string?> GetChatReplyAsync(string message, string? userName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync("chat", new ChatMessageRequest { Message = message, UserName = userName }, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Chat reply request failed with status code {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            var reply = await response.Content.ReadFromJsonAsync<ChatMessageResponse>(cancellationToken);
+            return string.IsNullOrWhiteSpace(reply?.Reply) ? null : reply.Reply;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Chat reply request threw");
+            return null;
+        }
+    }
+
     // private record LastSeenResponse(DateTime? LastSeenAt);
 }

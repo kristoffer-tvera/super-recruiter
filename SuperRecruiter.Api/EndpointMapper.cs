@@ -11,6 +11,7 @@ public static class EndpointMapper
         MapPlayerEndpoints(app);
         MapSeenPlayerEndpoints(app);
         MapAdminConfigEndpoints(app);
+        MapChatEndpoints(app);
 
         return app;
     }
@@ -171,6 +172,28 @@ public static class EndpointMapper
             {
                 var config = await db.UpdateAdminConfigAsync(request);
                 return Results.Ok(config);
+            }
+        );
+    }
+
+    private static void MapChatEndpoints(IEndpointRouteBuilder api)
+    {
+        const int maxMessageLength = 1000;
+
+        api.MapPost(
+            "/chat",
+            async (GeminiService gemini, ChatMessageRequest request) =>
+            {
+                if (string.IsNullOrWhiteSpace(request.Message))
+                    return Results.BadRequest(new { error = "Message is required" });
+
+                var message = request.Message.Length > maxMessageLength ? request.Message[..maxMessageLength] : request.Message;
+
+                var reply = await gemini.GetChatReplyAsync(message, request.UserName);
+
+                return string.IsNullOrWhiteSpace(reply)
+                    ? Results.Problem("Failed to generate a chat reply", statusCode: StatusCodes.Status503ServiceUnavailable)
+                    : Results.Ok(new ChatMessageResponse { Reply = reply });
             }
         );
     }

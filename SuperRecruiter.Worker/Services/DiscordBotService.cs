@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Discord;
 using Discord.WebSocket;
 using SuperRecruiter.Shared.Constants;
@@ -10,10 +12,16 @@ namespace SuperRecruiter.Worker.Services;
 /// Discord bot that connects via gateway to send messages with interactive buttons
 /// and handle button-click interactions.
 /// </summary>
-public class DiscordBotService : IHostedService
+public partial class DiscordBotService : IHostedService
 {
     private const ulong OfficerRoleId = 420722779432943616;
     private const string AddPlayerCommandName = "add-player";
+    private const string ChatFallbackReply = "... ye, I'm gonna have to sit this one out, I have technical issues right now.";
+    private const int DiscordMessageLimit = 2000;
+
+    private static readonly TimeSpan ChatCooldown = TimeSpan.FromSeconds(10);
+
+    private readonly ConcurrentDictionary<ulong, DateTime> _lastChatReplyByUser = new();
 
     private readonly DiscordSocketClient _client;
     private readonly ILogger<DiscordBotService> _logger;
@@ -40,6 +48,7 @@ public class DiscordBotService : IHostedService
         _client.Log += LogAsync;
         _client.Ready += ReadyAsync;
         _client.InteractionCreated += InteractionCreatedAsync;
+        _client.MessageReceived += MessageReceivedAsync;
         _client.Disconnected += ex =>
         {
             _logger.LogWarning(ex, "Discord bot disconnected");
@@ -227,6 +236,107 @@ public class DiscordBotService : IHostedService
 
         await channel.SendMessageAsync($"[DEBUG] {content}");
     }
+
+    private Task MessageReceivedAsync(SocketMessage socketMessage)
+    {
+        if (socketMessage is not SocketUserMessage message)
+            return Task.CompletedTask;
+
+        if (message.Author.IsBot || message.Author.IsWebhook || message.Author.Id == _client.CurrentUser?.Id)
+            return Task.CompletedTask;
+
+        // Only a direct @mention counts — @everyone and role pings are ignored.
+        if (message.MentionedEveryone || _client.CurrentUser == null || !message.MentionedUsers.Any(u => u.Id == _client.CurrentUser.Id))
+            return Task.CompletedTask;
+
+        // Don't hold up the gateway while waiting on the AI.
+        _ = Task.Run(() => HandleMentionAsync(message));
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleMentionAsync(SocketUserMessage message)
+    {
+        try
+        {
+            if (!TryStartChatCooldown(message.Author.Id))
+            {
+                _logger.LogDebug("Ignoring mention from {User} — still on cooldown", message.Author.Username);
+                return;
+            }
+
+            var prompt = MentionPattern().Replace(message.Content, string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(prompt))
+            {
+                await ReplyInChannelAsync(message, "You rang? Ask me something about recruitment or applicants.");
+                return;
+            }
+
+            string? reply;
+            using (message.Channel.EnterTypingState())
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var apiClient = scope.ServiceProvider.GetRequiredService<SuperRecruiterApiClient>();
+
+                var displayName = (message.Author as SocketGuildUser)?.DisplayName ?? message.Author.Username;
+                reply = await apiClient.GetChatReplyAsync(prompt, displayName);
+            }
+
+            await ReplyInChannelAsync(message, reply ?? ChatFallbackReply);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error replying to a mention from {User}", message.Author.Username);
+
+            try
+            {
+                await ReplyInChannelAsync(message, ChatFallbackReply);
+            }
+            catch (Exception replyEx)
+            {
+                _logger.LogError(replyEx, "Failed to send the chat fallback reply");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Stamps the cooldown and returns false if the user replied to too recently.
+    /// </summary>
+    private bool TryStartChatCooldown(ulong userId)
+    {
+        var now = DateTime.UtcNow;
+        var allowed = false;
+
+        _lastChatReplyByUser.AddOrUpdate(
+            userId,
+            _ =>
+            {
+                allowed = true;
+                return now;
+            },
+            (_, lastReply) =>
+            {
+                if (now - lastReply < ChatCooldown)
+                    return lastReply;
+
+                allowed = true;
+                return now;
+            }
+        );
+
+        return allowed;
+    }
+
+    private static async Task ReplyInChannelAsync(SocketUserMessage message, string content)
+    {
+        var text = content.Length > DiscordMessageLimit ? content[..DiscordMessageLimit] : content;
+
+        await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id), allowedMentions: AllowedMentions.None);
+    }
+
+    [GeneratedRegex(@"<@!?\d+>")]
+    private static partial Regex MentionPattern();
 
     private async Task InteractionCreatedAsync(SocketInteraction interaction)
     {
