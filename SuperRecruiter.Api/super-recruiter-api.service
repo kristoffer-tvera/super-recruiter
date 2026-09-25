@@ -1,0 +1,16 @@
+[Unit]
+Description=Super Recruiter API
+After=network.target
+
+[Service]
+Type=exec
+WorkingDirectory=/opt/super-recruiter-api
+ExecStart=/opt/super-recruiter-api/SuperRecruiter.Api
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/super-recruiter-api.env
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5100
+
+[Install]
+WantedBy=multi-user.target
