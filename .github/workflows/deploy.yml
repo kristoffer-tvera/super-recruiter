@@ -179,7 +179,7 @@ jobs:
 
                   sudo install -d -m 0700 /etc/sites/super-recruiter
                   sudo install -m 0600 /dev/null /etc/sites/super-recruiter/runtime.env
-                  SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --format json |
+                  sudo env SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --format json |
                     jq -e '([.services[].ports[].published | tonumber] | sort) == [18050, 18051] and all(.services[].ports[]; .host_ip == "127.0.0.1") and (.services | keys | sort) == ["api", "web"] and all(.services[]; .read_only == true and .init == true and .restart == "unless-stopped" and .pids_limit > 0 and .mem_limit != null and .cpus != null and .cap_drop == ["ALL"]) and .services.web.user == "101:101" and .services.api.user == "1654:1654" and (.services.web.image | test("@sha256:[0-9a-f]{64}$")) and (.services.api.image | test("@sha256:[0-9a-f]{64}$"))' >/dev/null
 
             - name: Configure verified SSH
