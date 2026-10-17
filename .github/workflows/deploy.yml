@@ -109,8 +109,29 @@ jobs:
                   set -euo pipefail
                   image="${WEB_IMAGE}@${WEB_DIGEST}"
                   docker run --detach --name super-recruiter-web-smoke --user 101:101 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m,mode=1777 --health-interval 1s --health-start-period 0s --publish 127.0.0.1:18050:8080 "$image"
-                  trap 'docker rm --force super-recruiter-web-smoke >/dev/null 2>&1 || true' EXIT
-                  curl --fail --silent --show-error --retry 20 --retry-delay 1 --retry-connrefused --max-time 45 http://127.0.0.1:18050/healthz >/dev/null
+                    cleanup() {
+                      status=$?
+                      if [[ "$status" -ne 0 ]]; then
+                        docker inspect --format 'state={{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' super-recruiter-web-smoke || true
+                        docker logs super-recruiter-web-smoke || true
+                      fi
+                      docker rm --force super-recruiter-web-smoke >/dev/null 2>&1 || true
+                      exit "$status"
+                    }
+                    trap cleanup EXIT
+                    for attempt in {1..30}; do
+                      state=$(docker inspect --format '{{.State.Status}}' super-recruiter-web-smoke)
+                        if [[ "$state" == exited || "$state" == dead ]]; then
+                          docker logs super-recruiter-web-smoke
+                          exit 1
+                        fi
+                        [[ "$state" == running ]] || { sleep 1; continue; }
+                      health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' super-recruiter-web-smoke)
+                      [[ "$health" == healthy ]] && break
+                      sleep 1
+                    done
+                    [[ "$health" == healthy ]]
+                    curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/healthz >/dev/null
                   curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/ >/dev/null
                   curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/admin >/dev/null
                   status=$(curl --silent --show-error --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:18050/assets/__missing__.js)
