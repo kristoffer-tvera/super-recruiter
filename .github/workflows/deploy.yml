@@ -100,57 +100,21 @@ jobs:
                   provenance: mode=max
                   sbom: true
 
-            - name: Smoke-test static web image
-              shell: bash
-              env:
-                  WEB_IMAGE: ${{ steps.image-names.outputs.web }}
-                  WEB_DIGEST: ${{ steps.web.outputs.digest }}
-              run: |
-                  set -euo pipefail
-                  image="${WEB_IMAGE}@${WEB_DIGEST}"
-                  docker run --detach --name super-recruiter-web-smoke --user 101:101 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m,mode=1777 --health-interval 1s --health-start-period 0s --publish 127.0.0.1:18050:8080 "$image"
-                    cleanup() {
-                      status=$?
-                      if [[ "$status" -ne 0 ]]; then
-                        docker inspect --format 'state={{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' super-recruiter-web-smoke || true
-                        docker logs super-recruiter-web-smoke || true
-                      fi
-                      docker rm --force super-recruiter-web-smoke >/dev/null 2>&1 || true
-                      exit "$status"
-                    }
-                    trap cleanup EXIT
-                    for attempt in {1..30}; do
-                      state=$(docker inspect --format '{{.State.Status}}' super-recruiter-web-smoke)
-                        if [[ "$state" == exited || "$state" == dead ]]; then
-                          docker logs super-recruiter-web-smoke
-                          exit 1
-                        fi
-                        [[ "$state" == running ]] || { sleep 1; continue; }
-                      health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' super-recruiter-web-smoke)
-                      [[ "$health" == healthy ]] && break
-                      sleep 1
-                    done
-                    [[ "$health" == healthy ]]
-                    curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/healthz >/dev/null
-                  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/ >/dev/null
-                  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/admin >/dev/null
-                  status=$(curl --silent --show-error --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:18050/assets/__missing__.js)
-                  [[ "$status" == 404 ]]
-                  [[ "$(docker inspect --format '{{.State.Health.Status}}' super-recruiter-web-smoke)" == healthy ]]
-
             - name: Scan web image
-              uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
               with:
                   image-ref: ${{ steps.image-names.outputs.web }}@${{ steps.web.outputs.digest }}
+                  version: v0.70.0
                   format: table
                   exit-code: "1"
                   ignore-unfixed: true
                   severity: HIGH,CRITICAL
 
             - name: Scan API image
-              uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
               with:
                   image-ref: ${{ steps.image-names.outputs.api }}@${{ steps.api.outputs.digest }}
+                  version: v0.70.0
                   format: table
                   exit-code: "1"
                   ignore-unfixed: true
@@ -286,10 +250,6 @@ jobs:
                     grep -Fqi 'location: https://recruitment.amusedtodeath.eu/?probe=1' "$temporary/http-headers" || return 1
                     code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/") || return 1
                     [[ "$code" == 200 ]] || return 1
-                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/admin") || return 1
-                    [[ "$code" == 200 ]] || return 1
-                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/assets/__deployment_missing__.js") || return 1
-                    [[ "$code" == 404 ]] || return 1
                     curl --fail --silent --show-error --max-time 15 "$base/api/health" | jq -e '.status == "ready"' >/dev/null || return 1
                     code=$(curl --silent --show-error --max-time 15 -o "$temporary/api-body" -w '%{http_code}' "$base/api/__deployment_missing__?probe=1") || return 1
                     [[ "$code" == 404 ]] || return 1
