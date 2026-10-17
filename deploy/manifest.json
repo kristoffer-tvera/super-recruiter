@@ -1,0 +1,10 @@
+{
+    "schema": 1,
+    "site": "super-recruiter",
+    "domains": ["recruitment.amusedtodeath.eu"],
+    "ports": [18050, 18051],
+    "checks": [
+        { "url": "https://recruitment.amusedtodeath.eu/", "status": 200 },
+        { "url": "https://recruitment.amusedtodeath.eu/api/health", "status": 200 }
+    ]
+}

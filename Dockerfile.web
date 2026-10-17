@@ -1,0 +1,21 @@
+FROM node:24-alpine3.23@sha256:e44c87c7dd212720eb00469aeac89504ca2be77b8f0d6dbffb30665d5fcc59e1 AS build
+
+WORKDIR /app
+RUN apk upgrade --no-cache
+COPY super-recruiter-web/package.json super-recruiter-web/package-lock.json ./
+RUN npm ci
+COPY super-recruiter-web/ ./
+RUN npm run build
+
+FROM nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+
+ARG SECURITY_REFRESH=local
+RUN test -n "$SECURITY_REFRESH" && apk upgrade --no-cache
+COPY deploy/web-nginx.conf /etc/nginx/nginx.conf
+COPY --from=build /app/dist/ /usr/share/nginx/html/
+
+USER 101:101
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --retries=6 --start-period=10s CMD wget -q --spider http://127.0.0.1:8080/healthz || exit 1
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]

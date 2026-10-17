@@ -6,14 +6,14 @@ namespace SuperRecruiter.Api;
 
 public static class EndpointMapper
 {
-    public static WebApplication MapEndpoints(this WebApplication app)
+    public static RouteGroupBuilder MapEndpoints(this RouteGroupBuilder api)
     {
-        MapPlayerEndpoints(app);
-        MapSeenPlayerEndpoints(app);
-        MapAdminConfigEndpoints(app);
-        MapChatEndpoints(app);
+        MapPlayerEndpoints(api);
+        MapSeenPlayerEndpoints(api);
+        MapAdminConfigEndpoints(api);
+        MapChatEndpoints(api);
 
-        return app;
+        return api;
     }
 
     private static void MapPlayerEndpoints(IEndpointRouteBuilder api)
@@ -57,7 +57,7 @@ public static class EndpointMapper
             async (PlayerDatabaseService db, CreatePlayerRequest request) =>
             {
                 var player = await db.UpsertPlayerAsync(request);
-                return Results.Created($"/players/{player.Id}", player);
+                return Results.Created($"/api/players/{player.Id}", player);
             }
         );
 

@@ -1,0 +1,286 @@
+name: Production Deploy
+
+on:
+    push:
+        branches: [master]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: super-recruiter-production
+    cancel-in-progress: false
+
+jobs:
+    publish:
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        permissions:
+            contents: read
+            packages: write
+        outputs:
+            web-image: ${{ steps.image-names.outputs.web }}
+            web-digest: ${{ steps.web.outputs.digest }}
+            api-image: ${{ steps.image-names.outputs.api }}
+            api-digest: ${{ steps.api.outputs.digest }}
+        steps:
+            - name: Check out source
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: super-recruiter-web/package-lock.json
+
+            - name: Set up .NET
+              uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+              with:
+                  dotnet-version: 10.0.x
+
+            - name: Install frontend dependencies
+              run: npm ci --prefix super-recruiter-web
+
+            - name: Lint frontend
+              run: npm --prefix super-recruiter-web run lint
+
+            - name: Build frontend
+              run: npm --prefix super-recruiter-web run build
+
+            - name: Build API
+              run: dotnet build SuperRecruiter.Api/SuperRecruiter.Api.csproj --configuration Release
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set image names
+              id: image-names
+              shell: bash
+              run: |
+                  repository="${GITHUB_REPOSITORY,,}"
+                  echo "web=ghcr.io/${repository}-web" >> "$GITHUB_OUTPUT"
+                  echo "api=ghcr.io/${repository}-api" >> "$GITHUB_OUTPUT"
+
+            - name: Build and publish web image
+              id: web
+              uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+              with:
+                  context: .
+                  file: Dockerfile.web
+                  platforms: linux/amd64
+                  push: true
+                  build-args: SECURITY_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
+                  tags: ${{ steps.image-names.outputs.web }}:release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  cache-from: type=gha,scope=web
+                  cache-to: type=gha,mode=max,scope=web
+                  provenance: mode=max
+                  sbom: true
+
+            - name: Build and publish API image
+              id: api
+              uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+              with:
+                  context: .
+                  file: Dockerfile.api
+                  platforms: linux/amd64
+                  push: true
+                  tags: ${{ steps.image-names.outputs.api }}:release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  cache-from: type=gha,scope=api
+                  cache-to: type=gha,mode=max,scope=api
+                  provenance: mode=max
+                  sbom: true
+
+            - name: Smoke-test static web image
+              shell: bash
+              env:
+                  WEB_IMAGE: ${{ steps.image-names.outputs.web }}
+                  WEB_DIGEST: ${{ steps.web.outputs.digest }}
+              run: |
+                  set -euo pipefail
+                  image="${WEB_IMAGE}@${WEB_DIGEST}"
+                  docker run --detach --name super-recruiter-web-smoke --user 101:101 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m,mode=1777 --health-interval 1s --health-start-period 0s --publish 127.0.0.1:18050:8080 "$image"
+                  trap 'docker rm --force super-recruiter-web-smoke >/dev/null 2>&1 || true' EXIT
+                  curl --fail --silent --show-error --retry 20 --retry-delay 1 --retry-connrefused --max-time 45 http://127.0.0.1:18050/healthz >/dev/null
+                  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/ >/dev/null
+                  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18050/admin >/dev/null
+                  status=$(curl --silent --show-error --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:18050/assets/__missing__.js)
+                  [[ "$status" == 404 ]]
+                  [[ "$(docker inspect --format '{{.State.Health.Status}}' super-recruiter-web-smoke)" == healthy ]]
+
+            - name: Scan web image
+              uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+              with:
+                  image-ref: ${{ steps.image-names.outputs.web }}@${{ steps.web.outputs.digest }}
+                  format: table
+                  exit-code: "1"
+                  ignore-unfixed: true
+                  severity: HIGH,CRITICAL
+
+            - name: Scan API image
+              uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+              with:
+                  image-ref: ${{ steps.image-names.outputs.api }}@${{ steps.api.outputs.digest }}
+                  format: table
+                  exit-code: "1"
+                  ignore-unfixed: true
+                  severity: HIGH,CRITICAL
+
+    deploy:
+        needs: publish
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        environment: production
+        permissions:
+            contents: read
+        steps:
+            - name: Check out release configuration
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Validate manifest and compose configuration
+              shell: bash
+              env:
+                  WEB_IMAGE: ${{ needs.publish.outputs.web-image }}
+                  WEB_DIGEST: ${{ needs.publish.outputs.web-digest }}
+                  API_IMAGE: ${{ needs.publish.outputs.api-image }}
+                  API_DIGEST: ${{ needs.publish.outputs.api-digest }}
+              run: |
+                  set -euo pipefail
+                  SITE_ID=super-recruiter
+                  RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                  [[ "$SITE_ID" =~ ^[a-z][a-z0-9-]{0,39}$ ]]
+                  [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]
+                  [[ "$WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+                  [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+                  node <<'NODE'
+                  const assert = require("node:assert/strict");
+                  const fs = require("node:fs");
+                  const manifest = JSON.parse(fs.readFileSync("deploy/manifest.json", "utf8"));
+                  assert.equal(manifest.schema, 1);
+                  assert.equal(manifest.site, "super-recruiter");
+                  assert.deepEqual(manifest.domains, ["recruitment.amusedtodeath.eu"]);
+                  assert.deepEqual([...manifest.ports].sort((a, b) => a - b), [18050, 18051]);
+                  for (const domain of manifest.domains) {
+                    assert(manifest.checks.some((check) => new URL(check.url).hostname === domain && check.url.startsWith("https://") && !new URL(check.url).port && check.status === 200));
+                  }
+                  assert(manifest.checks.some((check) => check.url === "https://recruitment.amusedtodeath.eu/"));
+                  assert(manifest.checks.some((check) => check.url === "https://recruitment.amusedtodeath.eu/api/health"));
+                  const nginxPath = "deploy/nginx/recruitment.amusedtodeath.eu.conf";
+                  assert(fs.existsSync(nginxPath));
+                  const nginx = fs.readFileSync(nginxPath, "utf8");
+                  assert(nginx.includes("server_name recruitment.amusedtodeath.eu;"));
+                  assert(nginx.includes("proxy_pass http://127.0.0.1:18051;"));
+                  assert(nginx.includes("proxy_pass http://127.0.0.1:18050;"));
+                  NODE
+
+                  mkdir -p "$RUNNER_TEMP/release/nginx"
+                  cp deploy/compose.yaml deploy/manifest.json "$RUNNER_TEMP/release/"
+                  cp deploy/nginx/recruitment.amusedtodeath.eu.conf "$RUNNER_TEMP/release/nginx/"
+                  printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\n' "$WEB_IMAGE" "$WEB_DIGEST" "$API_IMAGE" "$API_DIGEST" > "$RUNNER_TEMP/release/images.env"
+                  mapfile -t bundle_files < <(find "$RUNNER_TEMP/release" -type f -printf '%P\n' | sort)
+                  [[ "${bundle_files[*]}" == $'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf' ]]
+                  ! find "$RUNNER_TEMP/release" -type l -print -quit | grep -q .
+
+                  sudo install -d -m 0700 /etc/sites/super-recruiter
+                  sudo install -m 0600 /dev/null /etc/sites/super-recruiter/runtime.env
+                  SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --format json |
+                    jq -e '([.services[].ports[].published | tonumber] | sort) == [18050, 18051] and all(.services[].ports[]; .host_ip == "127.0.0.1") and (.services | keys | sort) == ["api", "web"] and all(.services[]; .read_only == true and .init == true and .restart == "unless-stopped" and .pids_limit > 0 and .mem_limit != null and .cpus != null and .cap_drop == ["ALL"]) and .services.web.user == "101:101" and .services.api.user == "1654:1654" and (.services.web.image | test("@sha256:[0-9a-f]{64}$")) and (.services.api.image | test("@sha256:[0-9a-f]{64}$"))' >/dev/null
+
+            - name: Configure verified SSH
+              shell: bash
+              env:
+                  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+                  DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+                  DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+              run: |
+                  set -euo pipefail
+                  python3 -c 'import ipaddress, sys; ipaddress.IPv4Address(sys.argv[1])' "$DEPLOY_HOST"
+                  install -d -m 0700 "$HOME/.ssh"
+                  umask 077
+                  printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+                  printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+                  chmod 0600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+
+            - name: Upload immutable release bundle
+              shell: bash
+              env:
+                  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+              run: |
+                  set -euo pipefail
+                  SITE_ID=super-recruiter
+                  RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                  [[ "$SITE_ID" =~ ^[a-z][a-z0-9-]{0,39}$ ]]
+                  [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]
+                  remote="deploy@${DEPLOY_HOST}"
+                  ssh -i "$HOME/.ssh/deploy_key" -p 22 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=10 "$remote" "install -d -m 0700 '/srv/deploy/incoming/${SITE_ID}/${RELEASE_ID}'"
+                  scp -r -i "$HOME/.ssh/deploy_key" -P 22 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=10 "$RUNNER_TEMP/release/compose.yaml" "$RUNNER_TEMP/release/manifest.json" "$RUNNER_TEMP/release/images.env" "$RUNNER_TEMP/release/nginx" "$remote:/srv/deploy/incoming/${SITE_ID}/${RELEASE_ID}/"
+
+            - name: Apply release on droplet
+              shell: bash
+              env:
+                  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+                  DEPLOY_PUBLIC_CHECKS: ${{ vars.DEPLOY_PUBLIC_CHECKS }}
+              run: |
+                  set -euo pipefail
+                  SITE_ID=super-recruiter
+                  RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                  [[ "$SITE_ID" =~ ^[a-z][a-z0-9-]{0,39}$ ]]
+                  [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]
+                  case "$DEPLOY_PUBLIC_CHECKS" in
+                    true) public_flag=--public ;;
+                    false) public_flag= ;;
+                    *) echo "DEPLOY_PUBLIC_CHECKS must be explicitly true or false" >&2; exit 1 ;;
+                  esac
+                  ssh -i "$HOME/.ssh/deploy_key" -p 22 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=10 "deploy@${DEPLOY_HOST}" "sudo -n /usr/local/sbin/site-deploy apply '${SITE_ID}' '${RELEASE_ID}' ${public_flag}"
+
+            - name: Verify public HTTPS deployment or roll back
+              if: vars.DEPLOY_PUBLIC_CHECKS == 'true'
+              shell: bash
+              env:
+                  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+              run: |
+                  set -euo pipefail
+                  SITE_ID=super-recruiter
+                  RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                  [[ "$SITE_ID" =~ ^[a-z][a-z0-9-]{0,39}$ ]]
+                  [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]
+                  base=https://recruitment.amusedtodeath.eu
+                  temporary="$RUNNER_TEMP/smoke"
+                  mkdir -p "$temporary"
+                  smoke() {
+                    local code headers
+                    code=$(curl --silent --show-error --max-time 15 -D "$temporary/http-headers" -o /dev/null -w '%{http_code}' "http://recruitment.amusedtodeath.eu/?probe=1") || return 1
+                    [[ "$code" == 308 ]] || return 1
+                    grep -Fqi 'location: https://recruitment.amusedtodeath.eu/?probe=1' "$temporary/http-headers" || return 1
+                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/") || return 1
+                    [[ "$code" == 200 ]] || return 1
+                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/admin") || return 1
+                    [[ "$code" == 200 ]] || return 1
+                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/assets/__deployment_missing__.js") || return 1
+                    [[ "$code" == 404 ]] || return 1
+                    curl --fail --silent --show-error --max-time 15 "$base/api/health" | jq -e '.status == "ready"' >/dev/null || return 1
+                    code=$(curl --silent --show-error --max-time 15 -o "$temporary/api-body" -w '%{http_code}' "$base/api/__deployment_missing__?probe=1") || return 1
+                    [[ "$code" == 404 ]] || return 1
+                    ! grep -qi '<!doctype html' "$temporary/api-body" || return 1
+                    code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/api/players?limit=1") || return 1
+                    [[ "$code" == 401 ]] || return 1
+                    code=$(curl --silent --show-error --max-time 15 -X POST -D "$temporary/headers" -o /dev/null -w '%{http_code}' "$base/api?probe=1") || return 1
+                    [[ "$code" == 308 ]] || return 1
+                    grep -qi '^location: https://recruitment\.amusedtodeath\.eu/api/?probe=1' "$temporary/headers" || return 1
+                  }
+                  if ! smoke; then
+                    echo "Public smoke checks failed; attempting guarded rollback" >&2
+                    ssh -i "$HOME/.ssh/deploy_key" -p 22 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=10 "deploy@${DEPLOY_HOST}" "sudo -n /usr/local/sbin/site-deploy rollback '${SITE_ID}' '${RELEASE_ID}' --public"
+                    exit 1
+                  fi

@@ -1,0 +1,69 @@
+name: ${SITE_ID:?required}
+
+services:
+  web:
+    image: ${WEB_IMAGE:?required}
+    user: "101:101"
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:18050:8080"
+    mem_limit: 64m
+    cpus: 0.50
+    pids_limit: 100
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    healthcheck:
+      test: [CMD, wget, --spider, -q, http://127.0.0.1:8080/healthz]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  api:
+    image: ${API_IMAGE:?required}
+    user: "1654:1654"
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:18051:8080"
+    env_file:
+      - /etc/sites/${SITE_ID:?required}/runtime.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      AllowedHosts: recruitment.amusedtodeath.eu
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 200
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    healthcheck:
+      test:
+        [
+          CMD,
+          curl,
+          --fail,
+          --silent,
+          --max-time,
+          "3",
+          --header,
+          "Host: recruitment.amusedtodeath.eu",
+          http://127.0.0.1:8080/api/health,
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.50.0/24

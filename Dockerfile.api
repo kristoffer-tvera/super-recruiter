@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine@sha256:230c3fbae0ceedc70bca04eed2bfb5694e8b248cadbb81010f41b7a993601f55 AS build
+
+WORKDIR /src
+COPY SuperRecruiter.Shared/SuperRecruiter.Shared.csproj SuperRecruiter.Shared/
+COPY SuperRecruiter.Api/SuperRecruiter.Api.csproj SuperRecruiter.Api/
+RUN dotnet restore SuperRecruiter.Api/SuperRecruiter.Api.csproj
+COPY SuperRecruiter.Shared/ SuperRecruiter.Shared/
+COPY SuperRecruiter.Api/ SuperRecruiter.Api/
+RUN dotnet publish SuperRecruiter.Api/SuperRecruiter.Api.csproj --configuration Release --no-restore --output /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine@sha256:819bd3649d8bf53f35527c68d62e17b348ef6f24ae73073f497f00a878348062
+
+RUN apk add --no-cache curl
+WORKDIR /app
+COPY --from=build --chown=1654:1654 /app/publish/ ./
+
+USER 1654:1654
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=20s CMD curl --fail --silent --show-error --max-time 3 --header "Host: recruitment.amusedtodeath.eu" http://127.0.0.1:8080/api/health || exit 1
+ENTRYPOINT ["dotnet", "SuperRecruiter.Api.dll"]

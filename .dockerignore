@@ -1,0 +1,17 @@
+.git
+.github
+.vscode
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/*.lscache
+**/appsettings.Development.json
+**/.env
+**/.env.*
+**/secrets
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+requests.http

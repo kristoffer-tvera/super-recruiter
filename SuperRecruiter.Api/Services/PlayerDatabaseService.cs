@@ -19,6 +19,55 @@ public class PlayerDatabaseService
 
     private IDbConnection CreateConnection() => new NpgsqlConnection(_connectionString);
 
+    public async Task<bool> IsReadyAsync()
+    {
+        using var connection = (NpgsqlConnection)CreateConnection();
+        await connection.OpenAsync();
+
+        const string sql = """
+            SELECT NOT EXISTS (
+                SELECT 1
+                FROM (VALUES
+                    ('players', 'id'),
+                    ('players', 'character_name'),
+                    ('players', 'class'),
+                    ('players', 'realm'),
+                    ('players', 'realm_slug'),
+                    ('players', 'item_level'),
+                    ('players', 'last_updated'),
+                    ('players', 'character_url'),
+                    ('players', 'battletag'),
+                    ('players', 'bio'),
+                    ('players', 'languages'),
+                    ('players', 'specs_playing'),
+                    ('players', 'guild_history'),
+                    ('players', 'raiderio_summary'),
+                    ('players', 'warcraftlogs_summary'),
+                    ('players', 'gemini_take'),
+                    ('players', 'status'),
+                    ('players', 'discord_message_id'),
+                    ('players', 'discord_channel_id'),
+                    ('players', 'current_tier_mythic_kill_count'),
+                    ('players', 'created_at'),
+                    ('players', 'updated_at'),
+                    ('seen_players', 'id'),
+                    ('seen_players', 'character_name'),
+                    ('seen_players', 'realm'),
+                    ('seen_players', 'first_seen_at'),
+                    ('seen_players', 'last_seen_at'),
+                    ('config', 'key'),
+                    ('config', 'value')
+                ) AS expected(table_name, column_name)
+                LEFT JOIN information_schema.columns AS actual
+                    ON actual.table_schema = 'public'
+                    AND actual.table_name = expected.table_name
+                    AND actual.column_name = expected.column_name
+                WHERE actual.column_name IS NULL
+            )
+            """;
+        return await connection.ExecuteScalarAsync<bool>(sql);
+    }
+
     public async Task InitializeDatabaseAsync()
     {
         using var connection = CreateConnection();
