@@ -178,7 +178,12 @@ jobs:
                   [[ "$bundle_listing" == "$expected_bundle" ]]
                   ! find "$RUNNER_TEMP/release" -type l -print -quit | grep -q .
 
-                  SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --no-env-resolution --format json > "$RUNNER_TEMP/compose-config.json"
+                  printf 'services:\n  api:\n    env_file: !reset []\n' > "$RUNNER_TEMP/compose-validation.yaml"
+                  SITE_ID="$SITE_ID" docker compose \
+                    --env-file "$RUNNER_TEMP/release/images.env" \
+                    --file deploy/compose.yaml \
+                    --file "$RUNNER_TEMP/compose-validation.yaml" \
+                    config --no-env-resolution --format json > "$RUNNER_TEMP/compose-config.json"
                   node - "$RUNNER_TEMP/compose-config.json" <<'NODE'
                   const assert = require("node:assert/strict");
                   const fs = require("node:fs");
