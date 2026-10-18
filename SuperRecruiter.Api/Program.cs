@@ -41,7 +41,7 @@ app.Use(
         var path = context.Request.Path;
 
         // Everything except health and API documentation is key-protected by default.
-        var isPublicPath = path == "/" || path == "/api/health" || path.StartsWithSegments("/scalar") || path.StartsWithSegments("/openapi");
+        var isPublicPath = path == "/" || path == "/api/health" || path.StartsWithSegments("/api/scalar") || path.StartsWithSegments("/api/openapi");
         if (isPublicPath)
         {
             await next();
@@ -73,8 +73,8 @@ app.Use(
     }
 );
 
-app.MapOpenApi();
-app.MapScalarApiReference();
+app.MapOpenApi("/api/openapi/{documentName}.json");
+app.MapScalarApiReference("/api/scalar", options => options.WithOpenApiRoutePattern("/api/openapi/{documentName}.json"));
 
 app.MapGet(
         "/api/health",
@@ -85,6 +85,6 @@ app.MapGet(
 app.MapGroup("/api").MapEndpoints();
 
 // SPA fallback — serve index.html for non-API routes
-app.MapGet("/", () => Results.Redirect("/scalar/v1")).ExcludeFromDescription();
+app.MapGet("/", () => Results.Redirect("/api/scalar")).ExcludeFromDescription();
 
 app.Run();
