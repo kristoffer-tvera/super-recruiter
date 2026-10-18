@@ -173,8 +173,9 @@ jobs:
                   cp deploy/compose.yaml deploy/manifest.json "$RUNNER_TEMP/release/"
                   cp deploy/nginx/recruitment.amusedtodeath.eu.conf "$RUNNER_TEMP/release/nginx/"
                   printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\n' "$WEB_IMAGE" "$WEB_DIGEST" "$API_IMAGE" "$API_DIGEST" > "$RUNNER_TEMP/release/images.env"
-                  mapfile -t bundle_files < <(find "$RUNNER_TEMP/release" -type f -printf '%P\n' | sort)
-                  [[ "${bundle_files[*]}" == $'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf' ]]
+                  bundle_listing=$(find "$RUNNER_TEMP/release" -type f -printf '%P\n' | sort)
+                  expected_bundle=$'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf'
+                  [[ "$bundle_listing" == "$expected_bundle" ]]
                   ! find "$RUNNER_TEMP/release" -type l -print -quit | grep -q .
 
                   SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --no-env-resolution --format json > "$RUNNER_TEMP/compose-config.json"
