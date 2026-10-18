@@ -32,6 +32,12 @@ app.UseForwardedHeaders();
 app.Use(
     async (context, next) =>
     {
+        if (context.GetEndpoint() is null)
+        {
+            await next();
+            return;
+        }
+
         var path = context.Request.Path;
 
         // Everything except health and API documentation is key-protected by default.

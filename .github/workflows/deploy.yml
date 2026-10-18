@@ -279,8 +279,14 @@ jobs:
                     [[ "$code" == 200 ]] || return 1
                     curl --fail --silent --show-error --max-time 15 "$base/api/health" | jq -e '.status == "ready"' >/dev/null || return 1
                     code=$(curl --silent --show-error --max-time 15 -o "$temporary/api-body" -w '%{http_code}' "$base/api/__deployment_missing__?probe=1") || return 1
-                    [[ "$code" == 404 ]] || return 1
-                    ! grep -qi '<!doctype html' "$temporary/api-body" || return 1
+                    if [[ "$code" != 404 ]]; then
+                      echo "Expected unknown API route to return 404; got $code" >&2
+                      return 1
+                    fi
+                    if grep -qi '<!doctype html' "$temporary/api-body"; then
+                      echo "Unknown API route returned SPA HTML instead of an API 404" >&2
+                      return 1
+                    fi
                     code=$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "$base/api/players?limit=1") || return 1
                     [[ "$code" == 401 ]] || return 1
                     code=$(curl --silent --show-error --max-time 15 -X POST -D "$temporary/headers" -o /dev/null -w '%{http_code}' "$base/api?probe=1") || return 1
