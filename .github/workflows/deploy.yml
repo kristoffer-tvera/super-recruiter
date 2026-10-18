@@ -177,10 +177,33 @@ jobs:
                   [[ "${bundle_files[*]}" == $'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf' ]]
                   ! find "$RUNNER_TEMP/release" -type l -print -quit | grep -q .
 
-                  sudo install -d -m 0700 /etc/sites/super-recruiter
-                  sudo install -m 0600 /dev/null /etc/sites/super-recruiter/runtime.env
-                  sudo env SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --format json |
-                    jq -e '([.services[].ports[].published | tonumber] | sort) == [18050, 18051] and all(.services[].ports[]; .host_ip == "127.0.0.1") and (.services | keys | sort) == ["api", "web"] and all(.services[]; .read_only == true and .init == true and .restart == "unless-stopped" and .pids_limit > 0 and .mem_limit != null and .cpus != null and .cap_drop == ["ALL"]) and .services.web.user == "101:101" and .services.api.user == "1654:1654" and (.services.web.image | test("@sha256:[0-9a-f]{64}$")) and (.services.api.image | test("@sha256:[0-9a-f]{64}$"))' >/dev/null
+                  SITE_ID="$SITE_ID" docker compose --env-file "$RUNNER_TEMP/release/images.env" -f deploy/compose.yaml config --no-env-resolution --format json > "$RUNNER_TEMP/compose-config.json"
+                  node - "$RUNNER_TEMP/compose-config.json" <<'NODE'
+                  const assert = require("node:assert/strict");
+                  const fs = require("node:fs");
+                  const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+                  const services = config.services;
+                  assert.deepEqual(Object.keys(services).sort(), ["api", "web"], "Compose must contain only web and API services");
+
+                  const ports = Object.values(services).flatMap((service) => service.ports);
+                  assert.deepEqual(ports.map((port) => Number(port.published)).sort((a, b) => a - b), [18050, 18051], "Published ports must match the manifest");
+                  assert(ports.every((port) => port.host_ip === "127.0.0.1"), "Every published port must bind to loopback only");
+
+                  for (const [name, service] of Object.entries(services)) {
+                    assert.equal(service.read_only, true, `${name} must use a read-only filesystem`);
+                    assert.equal(service.init, true, `${name} must use an init process`);
+                    assert.equal(service.restart, "unless-stopped", `${name} must restart unless stopped`);
+                    assert(Number(service.pids_limit) > 0, `${name} must set a PID limit`);
+                    assert(service.mem_limit != null, `${name} must set a memory limit`);
+                    assert(service.cpus != null, `${name} must set a CPU limit`);
+                    assert(service.cap_drop?.includes("ALL"), `${name} must drop all capabilities`);
+                    assert.match(service.image, /@sha256:[0-9a-f]{64}$/, `${name} image must use an OCI digest`);
+                  }
+
+                  assert.equal(services.web.user, "101:101", "Web must run as UID 101");
+                  assert.equal(services.api.user, "1654:1654", "API must run as UID 1654");
+                  console.log("Resolved Compose policy verified");
+                  NODE
 
             - name: Configure verified SSH
               shell: bash
