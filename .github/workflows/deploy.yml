@@ -135,9 +135,9 @@ jobs:
             - name: Validate manifest and compose configuration
               shell: bash
               env:
-                  WEB_IMAGE: ${{ needs.publish.outputs.web-image }}
+                  WEB_REPOSITORY: ${{ needs.publish.outputs.web-image }}
                   WEB_DIGEST: ${{ needs.publish.outputs.web-digest }}
-                  API_IMAGE: ${{ needs.publish.outputs.api-image }}
+                  API_REPOSITORY: ${{ needs.publish.outputs.api-image }}
                   API_DIGEST: ${{ needs.publish.outputs.api-digest }}
               run: |
                   set -euo pipefail
@@ -172,7 +172,7 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/release/nginx"
                   cp deploy/compose.yaml deploy/manifest.json "$RUNNER_TEMP/release/"
                   cp deploy/nginx/recruitment.amusedtodeath.eu.conf "$RUNNER_TEMP/release/nginx/"
-                  printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\n' "$WEB_IMAGE" "$WEB_DIGEST" "$API_IMAGE" "$API_DIGEST" > "$RUNNER_TEMP/release/images.env"
+                  printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\n' "$WEB_REPOSITORY" "$WEB_DIGEST" "$API_REPOSITORY" "$API_DIGEST" > "$RUNNER_TEMP/release/images.env"
                   bundle_listing=$(find "$RUNNER_TEMP/release" -type f -printf '%P\n' | sort)
                   expected_bundle=$'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf'
                   [[ "$bundle_listing" == "$expected_bundle" ]]
