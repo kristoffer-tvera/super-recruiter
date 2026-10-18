@@ -200,8 +200,12 @@ jobs:
                     assert.match(service.image, /@sha256:[0-9a-f]{64}$/, `${name} image must use an OCI digest`);
                   }
 
-                  assert.equal(services.web.user, "101:101", "Web must run as UID 101");
-                  assert.equal(services.api.user, "1654:1654", "API must run as UID 1654");
+                  const assertUid = (name, user, expectedUid) => {
+                    const actualUid = String(user ?? "").split(":", 1)[0];
+                    assert.equal(actualUid, String(expectedUid), `${name} must run as UID ${expectedUid}; Compose resolved user as ${JSON.stringify(user)}`);
+                  };
+                  assertUid("Web", services.web.user, 101);
+                  assertUid("API", services.api.user, 1654);
                   console.log("Resolved Compose policy verified");
                   NODE
 
