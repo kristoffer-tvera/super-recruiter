@@ -8,7 +8,7 @@ COPY SuperRecruiter.Shared/ SuperRecruiter.Shared/
 COPY SuperRecruiter.Api/ SuperRecruiter.Api/
 RUN dotnet publish SuperRecruiter.Api/SuperRecruiter.Api.csproj --configuration Release --no-restore --output /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine@sha256:819bd3649d8bf53f35527c68d62e17b348ef6f24ae73073f497f00a878348062
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine@sha256:ecf8dcbaab8ebc4bdfb2322d6fe4217bbb118894310ebb6d53c580874ab4b27d
 
 RUN apk add --no-cache curl
 WORKDIR /app
