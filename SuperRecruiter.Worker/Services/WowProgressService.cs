@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net.Http.Json;
+using System.Text.Json;
 using HtmlAgilityPack;
+using SuperRecruiter.Shared.DTOs;
 using SuperRecruiter.Shared.Models;
 
 namespace SuperRecruiter.Worker.Services;
@@ -22,8 +24,7 @@ public class WowProgressService(ILogger<WowProgressService> logger, HttpClient h
 
             if (string.IsNullOrWhiteSpace(html))
             {
-                logger.LogInformation("No HTML content fetched, returning empty player list.");
-                return players;
+                throw new WowProgressFetchException("invalid_response");
             }
 
             var doc = new HtmlDocument();
@@ -33,8 +34,9 @@ public class WowProgressService(ILogger<WowProgressService> logger, HttpClient h
 
             if (rows == null)
             {
-                logger.LogWarning("No player rows found in the table");
-                return players;
+                if (doc.DocumentNode.SelectSingleNode("//table") is not null)
+                    return players;
+                throw new WowProgressFetchException("invalid_response");
             }
 
             foreach (var row in rows)
@@ -116,121 +118,91 @@ public class WowProgressService(ILogger<WowProgressService> logger, HttpClient h
 
             logger.LogInformation("Successfully parsed {Count} players from WoWProgress", players.Count);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error fetching or parsing WoWProgress data");
+            throw;
         }
 
         return players;
     }
 
-    public async Task<Player> GetPlayerDetailsAsync(Player player, CancellationToken cancellationToken = default)
+    public async Task<WowProgressDetails> GetCharacterDetailsAsync(string characterName, string realmSlug, CancellationToken cancellationToken)
     {
-        try
-        {
-            logger.LogInformation("Fetching player details for {CharacterName} using FlareSolverr...", player.CharacterName);
+        var url = $"{BaseUrl}/character/eu/{Uri.EscapeDataString(realmSlug)}/{Uri.EscapeDataString(characterName)}";
+        return ParseDetails(await FetchWithFlareSolverrAsync(url, cancellationToken));
+    }
 
-            var html = await FetchWithFlareSolverrAsync(player.CharacterUrl, cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(html))
-            {
-                logger.LogInformation("No HTML content fetched, returning player unchanged.");
-                return player;
-            }
-
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-
-            var registeredTo = doc.DocumentNode.SelectSingleNode("//div[@class='registeredTo']");
-
-            if (registeredTo != null)
-            {
-                var battletagSpan = registeredTo.SelectSingleNode(".//span[@class='profileBattletag']");
-                player.BattleTag = battletagSpan?.InnerText.Trim();
-
-                var languageDiv = registeredTo.SelectSingleNode(".//div[@class='language' and contains(., 'Languages:')]");
-                if (languageDiv != null)
-                {
-                    var languageText = languageDiv.InnerText.Replace("Languages:", "").Trim();
-                    player.Languages = languageText;
-                }
-
-                var specsDiv = registeredTo.SelectSingleNode(".//div[@class='language' and contains(., 'Specs playing:')]");
-                if (specsDiv != null)
-                {
-                    var specsText = specsDiv.SelectSingleNode(".//strong")?.InnerText.Trim();
-                    player.SpecsPlaying = specsText;
-                }
-
-                var commentaryDiv = registeredTo.SelectSingleNode(".//div[@class='charCommentary']");
-                if (commentaryDiv != null)
-                {
-                    player.Bio = commentaryDiv.InnerText.Trim();
-                }
-
-                logger.LogInformation("Successfully parsed details for {CharacterName}: BattleTag={BattleTag}", player.CharacterName, player.BattleTag);
-            }
-            else
-            {
-                logger.LogWarning("No registeredTo div found for {CharacterName}. Character may not have a profile.", player.CharacterName);
-            }
-
-            var events = doc.DocumentNode.SelectNodes("//ul[@class='eventList']//li");
-            if (events != null)
-            {
-                var history = new List<string>(player.GuildHistory);
-                foreach (var row in events)
-                {
-                    var guildEvent = row?.InnerText.Trim();
-                    if (!string.IsNullOrEmpty(guildEvent))
-                        history.Add(guildEvent);
-                }
-                player.GuildHistory = history.ToArray();
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error fetching or parsing WoWProgress data");
-        }
-
-        return player;
+    public static WowProgressDetails ParseDetails(string html)
+    {
+        var document = new HtmlDocument();
+        document.LoadHtml(html);
+        var registered = document.DocumentNode.SelectSingleNode("//div[@class='registeredTo']");
+        var events = document.DocumentNode.SelectNodes("//ul[@class='eventList']//li");
+        if (registered is null && events is null)
+            throw new WowProgressFetchException("not_found_or_private");
+        static string? Text(HtmlNode? node) => node is null ? null : HtmlEntity.DeEntitize(node.InnerText).Trim();
+        var languages = Text(registered?.SelectSingleNode(".//div[@class='language' and contains(., 'Languages:')]"))?.Replace("Languages:", "").Trim();
+        return new(
+            Text(registered?.SelectSingleNode(".//span[@class='profileBattletag']")),
+            Text(registered?.SelectSingleNode(".//div[@class='charCommentary']")),
+            languages,
+            Text(registered?.SelectSingleNode(".//div[@class='language' and contains(., 'Specs playing:')]//strong")),
+            events?.Select(Text).OfType<string>().Where(value => value.Length > 0).Distinct().ToArray() ?? []
+        );
     }
 
     private async Task<string> FetchWithFlareSolverrAsync(string url, CancellationToken cancellationToken)
     {
-        try
+        var flareSolverrUrl = configuration["FlareSolverrUrl"];
+        if (string.IsNullOrWhiteSpace(flareSolverrUrl))
+            throw new WowProgressFetchException("not_configured");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(65));
+        using var request = new HttpRequestMessage(HttpMethod.Post, flareSolverrUrl)
         {
-            var flareSolverrUrl = configuration.GetValue<string>("FlareSolverrUrl") ?? "http://192.168.10.66:8191/v1";
-
-            logger.LogInformation("Sending request to FlareSolverr for {Url}", url);
-
-            var request = new
-            {
-                cmd = "request.get",
-                url,
-                maxTimeout = 60000,
-            };
-
-            var response = await httpClient.PostAsJsonAsync(flareSolverrUrl, request, cancellationToken);
-
-            response.EnsureSuccessStatusCode();
-
-            var result = await response.Content.ReadFromJsonAsync<FlareSolverrResponse>(cancellationToken: cancellationToken);
-
-            if (result?.Status != "ok" || result.Solution == null)
-            {
-                logger.LogError("FlareSolverr request failed. Status: {Status}, Message: {Message}", result?.Status, result?.Message);
-                return string.Empty;
-            }
-
-            logger.LogInformation("Successfully fetched HTML from FlareSolverr (Status: {StatusCode})", result.Solution.Status);
-
-            return result.Solution.Response;
-        }
-        catch (Exception ex)
+            Content = JsonContent.Create(
+                new
+                {
+                    cmd = "request.get",
+                    url,
+                    maxTimeout = 60000,
+                }
+            ),
+        };
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            throw new WowProgressFetchException("rate_limited");
+        response.EnsureSuccessStatusCode();
+        const int maximumBytes = 4 * 1024 * 1024;
+        if (response.Content.Headers.ContentLength > maximumBytes)
+            throw new WowProgressFetchException("response_too_large");
+        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        int count;
+        while ((count = await stream.ReadAsync(chunk, deadline.Token)) > 0)
         {
-            logger.LogError(ex, "Error fetching data from FlareSolverr for {Url}", url);
-            return string.Empty;
+            if (buffer.Length + count > maximumBytes)
+                throw new WowProgressFetchException("response_too_large");
+            buffer.Write(chunk, 0, count);
         }
+        var result = JsonSerializer.Deserialize<FlareSolverrResponse>(buffer.ToArray(), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        if (result?.Solution?.Status == 429)
+            throw new WowProgressFetchException("rate_limited");
+        if (result?.Solution?.Status == 404)
+            throw new WowProgressFetchException("not_found");
+        if (result?.Status != "ok" || result.Solution is null || result.Solution.Status != 200 || string.IsNullOrWhiteSpace(result.Solution.Response))
+            throw new WowProgressFetchException("unavailable");
+        return result.Solution.Response;
     }
+}
+
+public sealed class WowProgressFetchException(string outcome) : Exception(outcome)
+{
+    public string Outcome { get; } = outcome;
 }

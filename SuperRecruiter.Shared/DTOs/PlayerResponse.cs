@@ -20,6 +20,8 @@ public class PlayerResponse
     public string? RaiderIoSummary { get; set; }
     public string? WarcraftLogsSummary { get; set; }
     public string? GeminiTake { get; set; }
+    public DateTimeOffset? EnrichedAt { get; set; }
+    public DateTimeOffset? GeminiGeneratedAt { get; set; }
     public PlayerStatus Status { get; set; }
     public ulong? DiscordMessageId { get; set; }
     public ulong? DiscordChannelId { get; set; }

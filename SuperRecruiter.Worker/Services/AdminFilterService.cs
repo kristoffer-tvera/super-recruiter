@@ -7,11 +7,12 @@ namespace SuperRecruiter.Worker.Services;
 /// Caches the admin filter config from the API and decides whether a scraped player
 /// is noteworthy enough to be posted to Discord. Refreshed once per clock hour.
 /// </summary>
-public class AdminFilterService(SuperRecruiterApiClient apiClient, ILogger<AdminFilterService> logger)
+public class AdminFilterService(SuperRecruiterApiClient apiClient, ILogger<AdminFilterService> logger, TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private AdminConfigResponse? _config;
-    private DateTime _fetchedAtUtc;
+    private DateTimeOffset _nextFetchAt = DateTimeOffset.MinValue;
 
     public async Task<AdminConfigResponse?> GetConfigAsync(CancellationToken cancellationToken = default)
     {
@@ -28,7 +29,8 @@ public class AdminFilterService(SuperRecruiterApiClient apiClient, ILogger<Admin
             if (config != null)
             {
                 _config = config;
-                _fetchedAtUtc = DateTime.UtcNow;
+                var now = _clock.GetUtcNow();
+                _nextFetchAt = new DateTimeOffset(now.Year, now.Month, now.Day, now.Hour, 0, 0, TimeSpan.Zero).AddHours(1);
                 logger.LogInformation(
                     "Admin filter config refreshed: BossKills={BossKills}, AcceptedClasses=[{Classes}]",
                     config.BossKills,
@@ -37,11 +39,17 @@ public class AdminFilterService(SuperRecruiterApiClient apiClient, ILogger<Admin
             }
             else
             {
+                _nextFetchAt = _clock.GetUtcNow().AddMinutes(5);
                 logger.LogWarning("Admin filter config request returned no content — keeping the previous config");
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
+            _nextFetchAt = _clock.GetUtcNow().AddMinutes(5);
             // Keep serving the last known config rather than dropping the filters entirely.
             logger.LogError(ex, "Failed to refresh admin filter config");
         }
@@ -56,14 +64,7 @@ public class AdminFilterService(SuperRecruiterApiClient apiClient, ILogger<Admin
     /// <summary>
     /// True once the clock hour in which the config was fetched has passed.
     /// </summary>
-    private bool IsStale()
-    {
-        if (_config == null)
-            return true;
-
-        var topOfNextHour = new DateTime(_fetchedAtUtc.Year, _fetchedAtUtc.Month, _fetchedAtUtc.Day, _fetchedAtUtc.Hour, 0, 0, DateTimeKind.Utc).AddHours(1);
-        return DateTime.UtcNow >= topOfNextHour;
-    }
+    private bool IsStale() => _clock.GetUtcNow() >= _nextFetchAt;
 
     /// <summary>
     /// Applies the admin filters. A boss kill cutoff of 0 and an empty class list both mean "no filtering".

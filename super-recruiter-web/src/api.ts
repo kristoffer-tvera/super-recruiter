@@ -1,4 +1,4 @@
-import { type PlayerResponse, PlayerStatus, type PlayerFilter, type AdminConfig } from "./types";
+import { type PlayerResponse, PlayerStatus, type PlayerFilter, type AdminConfig, type PlayerEnrichmentResponse, type PlayerEnrichmentRefreshResponse } from "./types";
 
 const BASE = "/api";
 export const API_KEY_STORAGE_KEY = "superRecruiterApiKey";
@@ -84,6 +84,35 @@ export async function requestAiSummary(id: number): Promise<PlayerResponse> {
     });
     if (!res.ok) throw new Error("Failed to generate AI summary");
     return res.json();
+}
+
+export class EnrichmentRequestError extends Error {
+    readonly retryAfterSeconds: number;
+    constructor(message: string, retryAfterSeconds = 0) {
+        super(message);
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+}
+
+export async function fetchPlayerEnrichment(id: number): Promise<PlayerEnrichmentResponse> {
+    const response = await fetch(`${BASE}/players/${id}/enrichment?includeData=false`, { headers: withApiKey() });
+    if (!response.ok) throw new Error("Unable to read source status");
+    return response.json();
+}
+
+export async function fetchWowProgressPending(id: number): Promise<boolean> {
+    const response = await fetch(`${BASE}/wowprogress/jobs/pending/${id}`, { headers: withApiKey() });
+    if (!response.ok) throw new Error("Unable to check WoWProgress status");
+    return (await response.json()).pending;
+}
+
+export async function refreshPlayerEnrichment(id: number): Promise<PlayerEnrichmentRefreshResponse> {
+    const response = await fetch(`${BASE}/players/${id}/enrichment`, { method: "POST", headers: withApiKey() });
+    if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new EnrichmentRequestError(problem?.detail ?? "Unable to refresh player data", Number(response.headers.get("Retry-After")) || 0);
+    }
+    return response.json();
 }
 
 export async function fetchAdminConfig(): Promise<AdminConfig> {

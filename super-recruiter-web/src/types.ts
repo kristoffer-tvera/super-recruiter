@@ -25,11 +25,33 @@ export interface PlayerResponse {
     raiderIoSummary?: string;
     warcraftLogsSummary?: string;
     geminiTake?: string;
+    enrichedAt?: string;
+    geminiGeneratedAt?: string;
     status: PlayerStatus;
     discordMessageId?: number;
     discordChannelId?: number;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface SourceSnapshot {
+    schemaVersion: number;
+    data?: unknown;
+    fetchedAt?: string;
+    lastAttemptAt: string;
+    outcome: string;
+    error?: string;
+}
+
+export interface PlayerEnrichmentResponse {
+    raiderIo?: SourceSnapshot;
+    warcraftLogs?: SourceSnapshot;
+    wowProgress?: SourceSnapshot;
+}
+
+export interface PlayerEnrichmentRefreshResponse {
+    player: PlayerResponse;
+    enrichment: PlayerEnrichmentResponse;
 }
 
 export interface PlayerFilter {

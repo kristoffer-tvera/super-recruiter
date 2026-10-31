@@ -17,5 +17,5 @@ COPY --from=build --chown=1654:1654 /app/publish/ ./
 USER 1654:1654
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
-HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=20s CMD curl --fail --silent --show-error --max-time 3 --header "Host: recruitment.amusedtodeath.eu" http://127.0.0.1:8080/api/health || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=20s CMD curl --fail --silent --show-error --max-time 3 --header "Host: recruitment.amusedtodeath.eu" http://127.0.0.1:8080/api/live || exit 1
 ENTRYPOINT ["dotnet", "SuperRecruiter.Api.dll"]

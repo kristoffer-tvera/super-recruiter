@@ -25,6 +25,8 @@ jobs:
             web-digest: ${{ steps.web.outputs.digest }}
             api-image: ${{ steps.image-names.outputs.api }}
             api-digest: ${{ steps.api.outputs.digest }}
+            worker-image: ${{ steps.image-names.outputs.worker }}
+            worker-digest: ${{ steps.worker.outputs.digest }}
         steps:
             - name: Check out source
               uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -53,6 +55,9 @@ jobs:
             - name: Build API
               run: dotnet build SuperRecruiter.Api/SuperRecruiter.Api.csproj --configuration Release
 
+            - name: Test API and workers
+              run: dotnet test SuperRecruiter.Tests/SuperRecruiter.Tests.csproj --configuration Release
+
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -70,6 +75,7 @@ jobs:
                   repository="${GITHUB_REPOSITORY,,}"
                   echo "web=ghcr.io/${repository}-web" >> "$GITHUB_OUTPUT"
                   echo "api=ghcr.io/${repository}-api" >> "$GITHUB_OUTPUT"
+                  echo "worker=ghcr.io/${repository}-worker" >> "$GITHUB_OUTPUT"
 
             - name: Build and publish web image
               id: web
@@ -99,6 +105,30 @@ jobs:
                   cache-to: type=gha,mode=max,scope=api
                   provenance: mode=max
                   sbom: true
+
+            - name: Build and publish worker image
+              id: worker
+              uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+              with:
+                  context: .
+                  file: Dockerfile
+                  platforms: linux/amd64
+                  push: true
+                  tags: ${{ steps.image-names.outputs.worker }}:release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  cache-from: type=gha,scope=worker
+                  cache-to: type=gha,mode=max,scope=worker
+                  provenance: mode=max
+                  sbom: true
+
+            - name: Scan worker image
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  image-ref: ${{ steps.image-names.outputs.worker }}@${{ steps.worker.outputs.digest }}
+                  version: v0.70.0
+                  format: table
+                  exit-code: "1"
+                  ignore-unfixed: true
+                  severity: HIGH,CRITICAL
 
             - name: Scan web image
               uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -139,6 +169,8 @@ jobs:
                   WEB_DIGEST: ${{ needs.publish.outputs.web-digest }}
                   API_REPOSITORY: ${{ needs.publish.outputs.api-image }}
                   API_DIGEST: ${{ needs.publish.outputs.api-digest }}
+                  WORKER_REPOSITORY: ${{ needs.publish.outputs.worker-image }}
+                  WORKER_DIGEST: ${{ needs.publish.outputs.worker-digest }}
               run: |
                   set -euo pipefail
                   SITE_ID=super-recruiter
@@ -147,6 +179,7 @@ jobs:
                   [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]
                   [[ "$WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
                   [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+                  [[ "$WORKER_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
 
                   node <<'NODE'
                   const assert = require("node:assert/strict");
@@ -172,13 +205,13 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/release/nginx"
                   cp deploy/compose.yaml deploy/manifest.json "$RUNNER_TEMP/release/"
                   cp deploy/nginx/recruitment.amusedtodeath.eu.conf "$RUNNER_TEMP/release/nginx/"
-                  printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\n' "$WEB_REPOSITORY" "$WEB_DIGEST" "$API_REPOSITORY" "$API_DIGEST" > "$RUNNER_TEMP/release/images.env"
+                  printf 'WEB_IMAGE=%s@%s\nAPI_IMAGE=%s@%s\nWORKER_IMAGE=%s@%s\n' "$WEB_REPOSITORY" "$WEB_DIGEST" "$API_REPOSITORY" "$API_DIGEST" "$WORKER_REPOSITORY" "$WORKER_DIGEST" > "$RUNNER_TEMP/release/images.env"
                   bundle_listing=$(find "$RUNNER_TEMP/release" -type f -printf '%P\n' | sort)
                   expected_bundle=$'compose.yaml\nimages.env\nmanifest.json\nnginx/recruitment.amusedtodeath.eu.conf'
                   [[ "$bundle_listing" == "$expected_bundle" ]]
                   ! find "$RUNNER_TEMP/release" -type l -print -quit | grep -q .
 
-                  printf 'services:\n  api:\n    env_file: !reset []\n' > "$RUNNER_TEMP/compose-validation.yaml"
+                  printf 'services:\n  api:\n    env_file: !reset []\n  worker:\n    env_file: !reset []\n' > "$RUNNER_TEMP/compose-validation.yaml"
                   SITE_ID="$SITE_ID" docker compose \
                     --env-file "$RUNNER_TEMP/release/images.env" \
                     --file deploy/compose.yaml \
@@ -189,9 +222,11 @@ jobs:
                   const fs = require("node:fs");
                   const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
                   const services = config.services;
-                  assert.deepEqual(Object.keys(services).sort(), ["api", "web"], "Compose must contain only web and API services");
+                  assert.deepEqual(Object.keys(services).sort(), ["api", "web", "worker"], "Compose must contain web, API and the server worker");
+                  assert.equal(services.worker.environment.WorkerMode, "Server");
+                  assert.equal(services.worker.environment.SuperRecruiterApi__BaseUrl, "http://api:8080/api/");
 
-                  const ports = Object.values(services).flatMap((service) => service.ports);
+                  const ports = Object.values(services).flatMap((service) => service.ports ?? []);
                   assert.deepEqual(ports.map((port) => Number(port.published)).sort((a, b) => a - b), [18050, 18051], "Published ports must match the manifest");
                   assert(ports.every((port) => port.host_ip === "127.0.0.1"), "Every published port must bind to loopback only");
 

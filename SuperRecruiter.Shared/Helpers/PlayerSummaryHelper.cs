@@ -48,10 +48,8 @@ public static class PlayerSummaryHelper
 
     public static string GetCurrentExpansionProgressForDiscord(RaiderIOProfile? profile)
     {
-        var lastTier = profile?.Raid_progression_summary?.LastOrDefault() ?? "No raid data";
-        var lastPart = lastTier.Split('|').LastOrDefault()?.Trim() ?? "No raid data";
-
-        return lastPart;
+        var raids = profile?.Raid_progression;
+        return raids is { Count: > 0 } ? $"{raids.Values.Sum(raid => raid.Mythic_bosses_killed)}/{raids.Values.Sum(raid => raid.Total_bosses)} M" : "Progression unknown";
     }
 
     public static string GetCuttingEdgeSummary(RaiderIOProfile? profile)

@@ -199,7 +199,7 @@ public partial class DiscordBotService : IHostedService
             .WithTitle($"{player.CharacterName}-{player.Realm} | {player.Class} | {player.ItemLevel} | {currentTierExp}")
             .WithColor(new Color((uint)PlayerSummaryHelper.ClassColorFromClassName(player.Class)))
             .WithThumbnailUrl(thumbnail)
-            .WithDescription(player.Bio != null ? player.Bio[..Math.Min(player.Bio.Length, 2000)] : "No bio available")
+            .WithDescription(!string.IsNullOrWhiteSpace(player.Bio) ? player.Bio[..Math.Min(player.Bio.Length, 2000)] : "No bio available")
             .AddField("Links", string.Join(" | ", links))
             .AddField("Languages / Specs", $"{player.Languages ?? "N/A"} | {player.SpecsPlaying ?? "N/A"}");
 
@@ -415,7 +415,7 @@ public partial class DiscordBotService : IHostedService
                 return;
             }
 
-            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName);
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true);
             if (profile == null)
             {
                 await command.FollowupAsync($"No Raider.IO profile found for **{characterName}-{realm.Name}**. Check the spelling and realm.", ephemeral: true);
@@ -498,7 +498,7 @@ public partial class DiscordBotService : IHostedService
             var raiderIoService = scope.ServiceProvider.GetRequiredService<RaiderIOService>();
             var ingestionService = scope.ServiceProvider.GetRequiredService<PlayerIngestionService>();
 
-            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName);
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true);
             if (profile == null)
             {
                 await component.ModifyOriginalResponseAsync(msg => msg.Content = $"No Raider.IO profile found for **{characterName}-{realm.Name}** anymore.");
@@ -518,7 +518,7 @@ public partial class DiscordBotService : IHostedService
                 Source = LfgSource.Manual,
             };
 
-            var created = await ingestionService.ProcessPlayerAsync(player, CancellationToken.None);
+            var created = await ingestionService.ProcessPlayerAsync(player, CancellationToken.None, profile);
 
             if (created == null)
             {

@@ -4,8 +4,8 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>SuperRecruiter.Worker</RootNamespace>
-      <UserSecretsId>40d2beff-951b-459a-b380-4c6a8d8f4c45</UserSecretsId>
-  </PropertyGroup>
+        <UserSecretsId>40d2beff-951b-459a-b380-4c6a8d8f4c45</UserSecretsId>
+    </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Discord.Net" Version="3.20.1" />
         <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
@@ -16,9 +16,19 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\SuperRecruiter.Shared\SuperRecruiter.Shared.csproj" />
+        <InternalsVisibleTo Include="SuperRecruiter.Tests" />
     </ItemGroup>
     <Target Name="CopyDevSettingsOnPublish" AfterTargets="Publish">
-        <Copy Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')" SourceFiles="$(MSBuildProjectDirectory)\appsettings.Development.json" DestinationFiles="$(PublishDir)appsettings.json" OverwriteReadOnlyFiles="true" />
-        <Message Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')" Importance="high" Text="Copied appsettings.Development.json → $(PublishDir)appsettings.json" />
+        <Copy
+            Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')"
+            SourceFiles="$(MSBuildProjectDirectory)\appsettings.Development.json"
+            DestinationFiles="$(PublishDir)appsettings.json"
+            OverwriteReadOnlyFiles="true"
+        />
+        <Message
+            Condition="Exists('$(MSBuildProjectDirectory)\appsettings.Development.json')"
+            Importance="high"
+            Text="Copied appsettings.Development.json → $(PublishDir)appsettings.json"
+        />
     </Target>
 </Project>

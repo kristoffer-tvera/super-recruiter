@@ -14,8 +14,15 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<WowProgressJobQueue>();
 builder.Services.AddSingleton<PlayerDatabaseService>();
 builder.Services.AddHttpClient<GeminiService>();
+builder.Services.AddHttpClient("enrichment", client => client.Timeout = TimeSpan.FromSeconds(70)).RedactLoggedHeaders(["Authorization"]).RemoveAllLoggers();
+builder.Services.AddSingleton<PlayerSourceClient>();
+builder.Services.AddSingleton<PlayerEnrichmentService>();
 
 var app = builder.Build();
 
@@ -28,6 +35,7 @@ var dbService = app.Services.GetRequiredService<PlayerDatabaseService>();
 await dbService.InitializeDatabaseAsync();
 
 app.UseForwardedHeaders();
+app.UseExceptionHandler();
 
 app.Use(
     async (context, next) =>
@@ -41,7 +49,7 @@ app.Use(
         var path = context.Request.Path;
 
         // Everything except health and API documentation is key-protected by default.
-        var isPublicPath = path == "/" || path == "/api/health" || path.StartsWithSegments("/api/scalar") || path.StartsWithSegments("/api/openapi");
+        var isPublicPath = path == "/" || path == "/api/health" || path == "/api/live" || path.StartsWithSegments("/api/scalar") || path.StartsWithSegments("/api/openapi");
         if (isPublicPath)
         {
             await next();
@@ -76,6 +84,8 @@ app.Use(
 app.MapOpenApi("/api/openapi/{documentName}.json");
 app.MapScalarApiReference("/api/scalar", options => options.WithOpenApiRoutePattern("/api/openapi/{documentName}.json"));
 
+app.MapGet("/api/live", () => Results.Ok(new { status = "alive" })).ExcludeFromDescription();
+
 app.MapGet(
         "/api/health",
         async (PlayerDatabaseService db) => await db.IsReadyAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(StatusCodes.Status503ServiceUnavailable)
@@ -88,3 +98,5 @@ app.MapGroup("/api").MapEndpoints();
 app.MapGet("/", () => Results.Redirect("/api/scalar")).ExcludeFromDescription();
 
 app.Run();
+
+public partial class Program { }

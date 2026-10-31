@@ -35,7 +35,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
-      AllowedHosts: recruitment.amusedtodeath.eu
+      AllowedHosts: recruitment.amusedtodeath.eu;api
     mem_limit: 384m
     cpus: 0.75
     pids_limit: 200
@@ -55,12 +55,35 @@ services:
           "3",
           --header,
           "Host: recruitment.amusedtodeath.eu",
-          http://127.0.0.1:8080/api/health,
+          http://127.0.0.1:8080/api/live,
         ]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  worker:
+    image: ${WORKER_IMAGE:?required}
+    user: "1654:1654"
+    restart: unless-stopped
+    init: true
+    env_file:
+      - /etc/sites/${SITE_ID:?required}/worker.env
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      WorkerMode: Server
+      SuperRecruiterApi__BaseUrl: http://api:8080/api/
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 100
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
 
 networks:
   default:

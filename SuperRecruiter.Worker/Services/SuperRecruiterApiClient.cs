@@ -10,9 +10,36 @@ namespace SuperRecruiter.Worker.Services;
 /// </summary>
 public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruiterApiClient> logger)
 {
-    public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync()
+    public async Task<WowProgressJobResponse?> ClaimWowProgressJobAsync(CancellationToken cancellationToken)
     {
-        var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>("players/cache");
+        using var response = await httpClient.PostAsync("wowprogress/jobs/claim", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return response.StatusCode == System.Net.HttpStatusCode.NoContent ? null : await response.Content.ReadFromJsonAsync<WowProgressJobResponse>(cancellationToken);
+    }
+
+    public async Task CompleteWowProgressJobAsync(Guid id, CompleteWowProgressJobRequest result, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.PostAsJsonAsync($"wowprogress/jobs/{id}/complete", result, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            logger.LogWarning("WoWProgress job {JobId} lease expired; discarding stale result", id);
+            return;
+        }
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task PublishWowProgressDiscoveriesAsync(List<Player> players, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.PutAsJsonAsync("wowprogress/discoveries", players, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<Player>> GetWowProgressDiscoveriesAsync(CancellationToken cancellationToken) =>
+        await httpClient.GetFromJsonAsync<List<Player>>("wowprogress/discoveries", cancellationToken) ?? [];
+
+    public async Task<List<PlayerCacheResponse>> GetPlayersCacheAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.GetFromJsonAsync<List<PlayerCacheResponse>>("players/cache", cancellationToken);
         return response ?? [];
     }
 
@@ -24,16 +51,16 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return await response.Content.ReadFromJsonAsync<PlayerResponse>();
     }
 
-    public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
+    public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PostAsJsonAsync("players", request);
+        using var response = await httpClient.PostAsJsonAsync("players", request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var responseContent = await response.Content.ReadAsStringAsync();
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError("CreatePlayer failed with status code {StatusCode}: {ResponseContent}", response.StatusCode, responseContent);
             throw new Exception($"Failed to create player: {responseContent}");
         }
-        return (await response.Content.ReadFromJsonAsync<PlayerResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<PlayerResponse>(cancellationToken))!;
     }
 
     public async Task<PlayerResponse?> UpdatePlayerStatusByCharacterAsync(string realmSlug, string characterName, PlayerStatus status)
@@ -47,18 +74,18 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         return await response.Content.ReadFromJsonAsync<PlayerResponse>();
     }
 
-    public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync()
+    public async Task<List<SeenPlayerResponse>> GetAllSeenPlayersAsync(CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>("players/seen/all");
+        var response = await httpClient.GetFromJsonAsync<List<SeenPlayerResponse>>("players/seen/all", cancellationToken);
         return response ?? [];
     }
 
-    public async Task BulkAddSeenPlayersAsync(List<SeenPlayerRequest> requests)
+    public async Task BulkAddSeenPlayersAsync(List<SeenPlayerRequest> requests, CancellationToken cancellationToken = default)
     {
         if (requests.Count == 0)
             return;
 
-        var response = await httpClient.PostAsJsonAsync("players/seen/bulk", requests);
+        using var response = await httpClient.PostAsJsonAsync("players/seen/bulk", requests, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -68,9 +95,9 @@ public class SuperRecruiterApiClient(HttpClient httpClient, ILogger<SuperRecruit
         }
     }
 
-    public async Task CleanupSeenPlayersAsync(int daysToKeep = 30)
+    public async Task CleanupSeenPlayersAsync(int daysToKeep = 30, CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PostAsync($"players/seen/cleanup?daysToKeep={daysToKeep}", null);
+        using var response = await httpClient.PostAsync($"players/seen/cleanup?daysToKeep={daysToKeep}", null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var responseContent = await response.Content.ReadAsStringAsync();

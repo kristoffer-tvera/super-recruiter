@@ -5,15 +5,18 @@ namespace SuperRecruiter.Worker;
 
 public class ScraperWorker(
     ILogger<ScraperWorker> logger,
-    WowProgressService wowProgressService,
     RaiderIOService raiderIOService,
     SuperRecruiterApiClient apiClient,
     PlayerCacheService playerCache,
     PlayerIngestionService playerIngestionService,
     DiscordBotService discordBotService,
-    IConfiguration configuration
+    IConfiguration configuration,
+    TimeProvider? timeProvider = null
 ) : BackgroundService
 {
+    private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
+    private DateTimeOffset _nextCleanupAt = DateTimeOffset.MinValue;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var pollingIntervalMinutes = configuration.GetValue("PollingIntervalMinutes", 5);
@@ -32,13 +35,15 @@ public class ScraperWorker(
             logger.LogInformation("Discord bot is ready");
         }
 
-        var cycleCount = 0;
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                cycleCount = await RunScanCycleAsync(cycleCount, stoppingToken);
+                await RunScanCycleAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
@@ -52,39 +57,55 @@ public class ScraperWorker(
         logger.LogInformation("Scraper worker stopping");
     }
 
-    private async Task<int> RunScanCycleAsync(int cycleCount, CancellationToken stoppingToken)
+    internal async Task RunScanCycleAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Starting player scan at: {Time}", DateTimeOffset.Now);
 
-        var shouldRefreshPlayerCache = cycleCount % 4 == 0;
-        await playerCache.RefreshAsync(shouldRefreshPlayerCache);
-
-        var nextCycleCount = cycleCount + 1;
         var players = await GetMergedPlayersAsync(stoppingToken);
-        await ProcessDiscoveredPlayersAsync(players, stoppingToken);
-
-        await playerCache.FlushSeenPlayerBatchAsync();
-
-        // Six cycles is three hours with the default 30-minute interval.
-        if (nextCycleCount % 6 == 0)
+        if (players.Count > 0)
         {
-            logger.LogInformation("Running seen player cleanup");
-            await apiClient.CleanupSeenPlayersAsync(30);
+            await playerCache.RefreshAsync(false, stoppingToken);
+            if (players.Any(player => playerCache.GetLastSeenAt(player.CharacterName, player.Realm) is not { } lastSeen || player.LastUpdated > lastSeen))
+                await playerCache.RefreshAsync(true, stoppingToken);
+            await ProcessDiscoveredPlayersAsync(players, stoppingToken);
         }
 
-        return nextCycleCount;
+        var wroteSeenPlayers = await playerCache.FlushSeenPlayerBatchAsync(stoppingToken);
+
+        if (wroteSeenPlayers && _clock.GetUtcNow() >= _nextCleanupAt)
+        {
+            logger.LogInformation("Running seen player cleanup");
+            await apiClient.CleanupSeenPlayersAsync(30, stoppingToken);
+            _nextCleanupAt = _clock.GetUtcNow().AddDays(1);
+        }
     }
 
     private async Task<List<Player>> GetMergedPlayersAsync(CancellationToken stoppingToken)
     {
-        var wowProgressPlayers = await wowProgressService.GetLookingForGuildPlayersAsync(stoppingToken);
-        var raiderIoPlayers = await raiderIOService.GetLfgPlayers(stoppingToken);
+        var wowProgressTask = GetWowProgressDiscoveriesAsync(stoppingToken);
+        var raiderIoTask = raiderIOService.GetLfgPlayers(stoppingToken);
+        await Task.WhenAll(wowProgressTask, raiderIoTask);
+        var wowProgressPlayers = await wowProgressTask;
+        var raiderIoPlayers = await raiderIoTask;
 
         return wowProgressPlayers
             .Concat(raiderIoPlayers)
             .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
             .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
             .ToList();
+    }
+
+    private async Task<List<Player>> GetWowProgressDiscoveriesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await apiClient.GetWowProgressDiscoveriesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Cached WoWProgress listing unavailable; continuing Raider.IO discovery");
+            return [];
+        }
     }
 
     private async Task ProcessDiscoveredPlayersAsync(List<Player> players, CancellationToken stoppingToken)
@@ -106,7 +127,16 @@ public class ScraperWorker(
 
         foreach (var player in newPlayers)
         {
-            await playerIngestionService.ProcessPlayerAsync(player, stoppingToken);
+            stoppingToken.ThrowIfCancellationRequested();
+            try
+            {
+                await playerIngestionService.ProcessPlayerAsync(player, stoppingToken);
+                playerCache.QueueSeenPlayer(player.CharacterName, player.Realm, player.LastUpdated);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
+            {
+                logger.LogError(exception, "Failed to process {Character}-{Realm}; will retry next scan", player.CharacterName, player.Realm);
+            }
         }
     }
 
@@ -139,7 +169,6 @@ public class ScraperWorker(
                     );
                 }
 
-                playerCache.QueueSeenPlayer(player.CharacterName, player.Realm, player.LastUpdated);
                 newPlayers.Add(player);
             }
         }

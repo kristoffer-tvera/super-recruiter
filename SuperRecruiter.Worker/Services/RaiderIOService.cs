@@ -11,7 +11,6 @@ namespace SuperRecruiter.Worker.Services;
 public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpClient, IConfiguration configuration)
 {
     private const string BaseUrl = "https://raider.io/api";
-    private static readonly string[] TierSlugs = ["the-venomous-abyss", "tier-mn-1", "manaforge-omega", "liberation-of-undermine", "nerubar-palace"];
     private static readonly IReadOnlyDictionary<int, string> LanguageNames = new Dictionary<int, string>
     {
         [1] = "English",
@@ -26,7 +25,13 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
         [120] = "Turkish",
     };
 
-    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(string region, string realm, string characterName, CancellationToken cancellationToken = default)
+    public async Task<RaiderIOProfile?> GetCharacterProfileAsync(
+        string region,
+        string realm,
+        string characterName,
+        CancellationToken cancellationToken = default,
+        bool includeGear = false
+    )
     {
         try
         {
@@ -46,7 +51,7 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
                     ["region"] = region,
                     ["realm"] = normalizedRealm,
                     ["name"] = characterName,
-                    ["fields"] = $"gear,raid_progression:current-expansion,raid_achievement_curve:{string.Join(':', TierSlugs)}",
+                    ["fields"] = includeGear ? "gear,raid_progression:current-tier" : "raid_progression:current-tier",
                 }
             );
 

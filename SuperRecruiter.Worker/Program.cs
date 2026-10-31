@@ -6,11 +6,6 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// External API clients
-builder.Services.AddHttpClient<WowProgressService>();
-builder.Services.AddHttpClient<RaiderIOService>();
-builder.Services.AddHttpClient<WarcraftLogsService>();
-
 // Our own API client
 builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
 {
@@ -21,21 +16,28 @@ builder.Services.AddHttpClient<SuperRecruiterApiClient>(client =>
     client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 });
 
-// Player cache (refreshed each scan cycle)
-builder.Services.AddSingleton<PlayerCacheService>();
-
-// Admin filter config (refreshed hourly)
-builder.Services.AddSingleton<AdminFilterService>();
-
-// Enrichment + persistence pipeline, shared by the scraper and the Discord bot
-builder.Services.AddTransient<PlayerIngestionService>();
-
-// Discord bot (singleton — maintains gateway connection)
-builder.Services.AddSingleton<DiscordBotService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordBotService>());
-
-// Scraper worker
-builder.Services.AddHostedService<ScraperWorker>();
+var mode = builder.Configuration["WorkerMode"] ?? "Server";
+if (mode.Equals("WowProgress", StringComparison.OrdinalIgnoreCase))
+{
+    if (string.IsNullOrWhiteSpace(builder.Configuration["FlareSolverrUrl"]))
+        throw new InvalidOperationException("FlareSolverrUrl is required in WowProgress mode");
+    builder.Services.AddHttpClient<WowProgressService>(client => client.Timeout = TimeSpan.FromSeconds(70));
+    builder.Services.AddHostedService<WowProgressWorker>();
+}
+else if (mode.Equals("Server", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<RaiderIOService>();
+    builder.Services.AddSingleton<PlayerCacheService>();
+    builder.Services.AddSingleton<AdminFilterService>();
+    builder.Services.AddTransient<PlayerIngestionService>();
+    builder.Services.AddSingleton<DiscordBotService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<DiscordBotService>());
+    builder.Services.AddHostedService<ScraperWorker>();
+}
+else
+{
+    throw new InvalidOperationException("WorkerMode must be Server or WowProgress");
+}
 
 var host = builder.Build();
 host.Run();

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Dapper;
 using Npgsql;
 using SuperRecruiter.Shared.DTOs;
@@ -6,7 +7,7 @@ using SuperRecruiter.Shared.Models;
 
 namespace SuperRecruiter.Api.Services;
 
-public class PlayerDatabaseService
+public partial class PlayerDatabaseService
 {
     private readonly string _connectionString;
     private readonly ILogger<PlayerDatabaseService> _logger;
@@ -48,6 +49,13 @@ public class PlayerDatabaseService
                     ('players', 'discord_message_id'),
                     ('players', 'discord_channel_id'),
                     ('players', 'current_tier_mythic_kill_count'),
+                    ('players', 'discovery_progression'),
+                    ('players', 'raiderio_data'),
+                    ('players', 'warcraftlogs_data'),
+                    ('players', 'wowprogress_data'),
+                    ('players', 'enrichment_attempted_at'),
+                    ('players', 'enriched_at'),
+                    ('players', 'gemini_generated_at'),
                     ('players', 'created_at'),
                     ('players', 'updated_at'),
                     ('seen_players', 'id'),
@@ -141,6 +149,17 @@ public class PlayerDatabaseService
         await connection.ExecuteAsync(createPlayersTable);
         await connection.ExecuteAsync(createSeenPlayersTable);
         await connection.ExecuteAsync(createConfigTable);
+        await connection.ExecuteAsync(
+            """
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS discovery_progression JSONB;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS raiderio_data JSONB;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS warcraftlogs_data JSONB;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS wowprogress_data JSONB;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS enrichment_attempted_at TIMESTAMPTZ;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS enriched_at TIMESTAMPTZ;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS gemini_generated_at TIMESTAMPTZ;
+            """
+        );
 
         _logger.LogInformation("Database tables initialized successfully");
     }
@@ -154,6 +173,7 @@ public class PlayerDatabaseService
             warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
             status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
             current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+            enriched_at AS EnrichedAt, gemini_generated_at AS GeminiGeneratedAt,
             created_at AS CreatedAt, updated_at AS UpdatedAt
             FROM players";
 
@@ -218,13 +238,13 @@ public class PlayerDatabaseService
         return players.ToList();
     }
 
-    public async Task<PlayerResponse?> GetPlayerByIdAsync(int id)
+    public async Task<PlayerResponse?> GetPlayerByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         using var connection = CreateConnection();
 
         var sql = $"{BasePlayerSelectQuery} WHERE id = @Id";
 
-        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(sql, new { Id = id });
+        return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
     }
 
     public async Task<PlayerResponse> UpsertPlayerAsync(CreatePlayerRequest request)
@@ -236,19 +256,24 @@ public class PlayerDatabaseService
             INSERT INTO players (character_name, class, realm, realm_slug, item_level, last_updated,
                 character_url, battletag, bio, languages, specs_playing, guild_history,
                 raiderio_summary, warcraftlogs_summary, status,
-                discord_message_id, discord_channel_id, current_tier_mythic_kill_count, created_at, updated_at)
+                discord_message_id, discord_channel_id, current_tier_mythic_kill_count, discovery_progression, created_at, updated_at)
             VALUES (@CharacterName, @Class, @Realm, @RealmSlug, @ItemLevel, @LastUpdated,
                 @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory,
                 @RaiderIoSummary, @WarcraftLogsSummary, @Status,
-                @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, @Now, @Now)
+                @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, CAST(@DiscoveryProgression AS jsonb), @Now, @Now)
             ON CONFLICT (character_name, realm)
             DO UPDATE SET class = @Class, realm_slug = @RealmSlug, item_level = @ItemLevel,
-                last_updated = @LastUpdated, character_url = @CharacterUrl, battletag = @BattleTag,
-                bio = @Bio, languages = @Languages, specs_playing = @SpecsPlaying,
-                guild_history = @GuildHistory, raiderio_summary = @RaiderIoSummary,
-                warcraftlogs_summary = @WarcraftLogsSummary,
-                discord_message_id = @DiscordMessageId, discord_channel_id = @DiscordChannelId,
-                current_tier_mythic_kill_count = @CurrentTierMythicKillCount,
+                last_updated = @LastUpdated, character_url = COALESCE(NULLIF(@CharacterUrl, ''), players.character_url),
+                battletag = COALESCE(NULLIF(@BattleTag, ''), players.battletag),
+                bio = COALESCE(NULLIF(@Bio, ''), players.bio),
+                languages = COALESCE(NULLIF(NULLIF(@Languages, ''), 'N/A'), players.languages),
+                specs_playing = COALESCE(NULLIF(@SpecsPlaying, ''), players.specs_playing),
+                guild_history = CASE WHEN cardinality(@GuildHistory) > 0 THEN @GuildHistory ELSE players.guild_history END,
+                discord_message_id = COALESCE(@DiscordMessageId, players.discord_message_id),
+                discord_channel_id = COALESCE(@DiscordChannelId, players.discord_channel_id),
+                discovery_progression = COALESCE(CAST(@DiscoveryProgression AS jsonb), players.discovery_progression),
+                current_tier_mythic_kill_count = CASE WHEN @DiscoveryProgression IS NOT NULL
+                    THEN @CurrentTierMythicKillCount ELSE players.current_tier_mythic_kill_count END,
                 updated_at = @Now
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
@@ -281,6 +306,7 @@ public class PlayerDatabaseService
                 DiscordMessageId = (long?)request.DiscordMessageId,
                 DiscordChannelId = (long?)request.DiscordChannelId,
                 request.CurrentTierMythicKillCount,
+                DiscoveryProgression = request.DiscoveryProgression is null ? null : JsonSerializer.Serialize(request.DiscoveryProgression, SnapshotJsonOptions),
                 Now = DateTime.UtcNow,
             }
         );
@@ -319,7 +345,7 @@ public class PlayerDatabaseService
 
         var sql =
             @"
-            UPDATE players SET gemini_take = @GeminiTake, updated_at = @Now WHERE id = @Id
+            UPDATE players SET gemini_take = @GeminiTake, gemini_generated_at = @Now, updated_at = @Now WHERE id = @Id
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
@@ -470,10 +496,12 @@ public class PlayerDatabaseService
         var sql =
             @"
             INSERT INTO seen_players (character_name, realm, first_seen_at, last_seen_at)
-            SELECT * FROM UNNEST(@CharacterNames, @Realms, @LastUpdateds, @LastUpdateds)
-                AS t(character_name, realm, first_seen_at, last_seen_at)
+            SELECT character_name, realm, MIN(last_updated), MAX(last_updated)
+            FROM UNNEST(@CharacterNames, @Realms, @LastUpdateds)
+                AS t(character_name, realm, last_updated)
+            GROUP BY character_name, realm
             ON CONFLICT (character_name, realm)
-            DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at";
+            DO UPDATE SET last_seen_at = GREATEST(seen_players.last_seen_at, EXCLUDED.last_seen_at)";
 
         await connection.ExecuteAsync(
             sql,

@@ -1,0 +1,34 @@
+@baseUrl = http://localhost:5100/api
+@playerId = 1
+
+### Stored source status only; never contacts upstream services
+GET {{baseUrl}}/players/{{playerId}}/enrichment?includeData=false
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Stored source JSON snapshots
+GET {{baseUrl}}/players/{{playerId}}/enrichment
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Explicit fetch; WoWProgress returns pending for the local collector
+POST {{baseUrl}}/players/{{playerId}}/enrichment
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Repeat refresh: 409 while active, otherwise 429 with Retry-After during cooldown
+POST {{baseUrl}}/players/{{playerId}}/enrichment
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Missing player: 404
+GET {{baseUrl}}/players/2147483647/enrichment
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Memory-only pending status; safe to poll without waking PostgreSQL
+GET {{baseUrl}}/wowprogress/jobs/pending/{{playerId}}
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Collector claim: 200 with a three-minute lease, or 204 when idle
+POST {{baseUrl}}/wowprogress/jobs/claim
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}
+
+### Cached listing uploaded by the home collector
+GET {{baseUrl}}/wowprogress/discoveries
+X-Api-Key: {{$processEnv SUPER_RECRUITER_API_KEY}}

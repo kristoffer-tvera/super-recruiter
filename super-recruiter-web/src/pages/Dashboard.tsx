@@ -132,7 +132,7 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
         try {
             const updated = await updatePlayerStatus(realmSlug, characterName, status);
             setPlayers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            if (selectedPlayer?.id === updated.id) setSelectedPlayer(updated);
+            setSelectedPlayer((current) => (current?.id === updated.id ? updated : current));
         } catch (e) {
             console.error(e);
         }
@@ -144,7 +144,7 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
         try {
             const updated = await requestAiSummary(selectedPlayer.id);
             setPlayers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            setSelectedPlayer(updated);
+            setSelectedPlayer((current) => (current?.id === updated.id ? updated : current));
         } catch (e) {
             console.error(e);
         } finally {
@@ -253,7 +253,18 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
 
             {/* Player detail modal */}
             {selectedPlayer && (
-                <PlayerDetailModal player={selectedPlayer} aiLoading={aiLoading} onClose={closeModal} onStatusChange={handleStatusChange} onRequestAi={handleRequestAi} />
+                <PlayerDetailModal
+                    key={selectedPlayer.id}
+                    player={selectedPlayer}
+                    aiLoading={aiLoading}
+                    onClose={closeModal}
+                    onStatusChange={handleStatusChange}
+                    onRequestAi={handleRequestAi}
+                    onPlayerUpdated={(updated) => {
+                        setPlayers((current) => current.map((player) => (player.id === updated.id ? updated : player)));
+                        setSelectedPlayer((current) => (current?.id === updated.id ? updated : current));
+                    }}
+                />
             )}
         </>
     );

@@ -4,15 +4,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# 1. Clone the repository directly into the container's build folder
-RUN git clone https://github.com/kristoffer-tvera/super-recruiter.git .
-
-# 2. Restore dependencies using the cloned files
+COPY SuperRecruiter.Shared/SuperRecruiter.Shared.csproj SuperRecruiter.Shared/
+COPY SuperRecruiter.Worker/SuperRecruiter.Worker.csproj SuperRecruiter.Worker/
 RUN dotnet restore "SuperRecruiter.Worker/SuperRecruiter.Worker.csproj"
-
-# 3. Change directory to the worker project and publish
+COPY SuperRecruiter.Shared/ SuperRecruiter.Shared/
+COPY SuperRecruiter.Worker/ SuperRecruiter.Worker/
 WORKDIR /src/SuperRecruiter.Worker
-RUN dotnet publish "SuperRecruiter.Worker.csproj" -c Release -o /app /p:UseAppHost=false
+RUN dotnet publish "SuperRecruiter.Worker.csproj" -c Release -o /app --no-restore /p:UseAppHost=false
 
 # Stage 2: Final lightweight runtime
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
@@ -22,4 +20,5 @@ WORKDIR /app
 COPY --from=build /app .
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
+USER $APP_UID
 ENTRYPOINT ["dotnet", "SuperRecruiter.Worker.dll"]

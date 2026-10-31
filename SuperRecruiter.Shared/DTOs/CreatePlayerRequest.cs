@@ -15,7 +15,7 @@ public class CreatePlayerRequest
     public string? SpecsPlaying { get; set; }
     public List<string> GuildHistory { get; set; } = [];
 
-    // Enrichment data stored as pre-rendered markdown summaries
+    // Legacy ingestion compatibility; enrichment updates are owned by the API.
     public string? RaiderIoSummary { get; set; }
     public string? WarcraftLogsSummary { get; set; }
 
@@ -25,4 +25,5 @@ public class CreatePlayerRequest
 
     // Mythic progression
     public int CurrentTierMythicKillCount { get; set; }
+    public DiscoveryProgression? DiscoveryProgression { get; set; }
 }

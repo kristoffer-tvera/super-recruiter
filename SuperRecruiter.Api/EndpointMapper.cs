@@ -9,6 +9,7 @@ public static class EndpointMapper
     public static RouteGroupBuilder MapEndpoints(this RouteGroupBuilder api)
     {
         MapPlayerEndpoints(api);
+        MapWowProgressEndpoints(api);
         MapSeenPlayerEndpoints(api);
         MapAdminConfigEndpoints(api);
         MapChatEndpoints(api);
@@ -18,6 +19,49 @@ public static class EndpointMapper
 
     private static void MapPlayerEndpoints(IEndpointRouteBuilder api)
     {
+        api.MapGet(
+                "/players/{id:int}/enrichment",
+                async (PlayerDatabaseService db, WowProgressJobQueue jobs, int id, bool? includeData, CancellationToken cancellationToken) =>
+                {
+                    if (await db.GetPlayerByIdAsync(id, cancellationToken) is null)
+                        return Results.NotFound();
+                    return Results.Ok(jobs.WithPending(await db.GetEnrichmentAsync(id, includeData ?? true, cancellationToken), id));
+                }
+            )
+            .WithName("GetPlayerEnrichment")
+            .WithSummary("Read stored source snapshots without contacting upstream services")
+            .Produces<PlayerEnrichmentResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        api.MapPost(
+                "/players/{id:int}/enrichment",
+                async (PlayerDatabaseService db, PlayerEnrichmentService enrichment, HttpContext context, int id, CancellationToken cancellationToken) =>
+                {
+                    var player = await db.GetPlayerByIdAsync(id, cancellationToken);
+                    if (player is null)
+                        return Results.NotFound();
+                    try
+                    {
+                        return Results.Ok(await enrichment.RefreshAsync(player, cancellationToken));
+                    }
+                    catch (EnrichmentBusyException exception)
+                    {
+                        if (exception.Cooldown)
+                            context.Response.Headers.RetryAfter = "60";
+                        return Results.Problem(
+                            exception.Cooldown ? "Refresh cooldown or server capacity reached. Retry in 60 seconds." : "This player is already being refreshed.",
+                            statusCode: exception.Cooldown ? StatusCodes.Status429TooManyRequests : StatusCodes.Status409Conflict
+                        );
+                    }
+                }
+            )
+            .WithName("RefreshPlayerEnrichment")
+            .WithSummary("Refresh Raider.IO and WarcraftLogs and queue local WoWProgress enrichment")
+            .Produces<PlayerEnrichmentRefreshResponse>()
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
         api.MapGet(
             "/players",
             async (PlayerDatabaseService db, int? limit, int? offset, int[]? status, string[]? playerClass, double? minItemLevel, int? minMythicKills) =>
@@ -66,7 +110,7 @@ public static class EndpointMapper
             async (PlayerDatabaseService db, int id, UpdatePlayerStatusRequest request) =>
             {
                 var player = await db.UpdatePlayerStatusAsync(id, request.Status);
-                return player is not null ? Results.Ok(player) : Results.NotFound();
+                return player is not null ? Results.Ok(await db.GetPlayerByIdAsync(id)) : Results.NotFound();
             }
         );
 
@@ -75,7 +119,7 @@ public static class EndpointMapper
             async (PlayerDatabaseService db, string realmSlug, string characterName, UpdatePlayerStatusRequest request) =>
             {
                 var player = await db.UpdatePlayerStatusByCharacterAndRealmAsync(characterName, realmSlug, request.Status);
-                return player is not null ? Results.Ok(player) : Results.NotFound();
+                return player is not null ? Results.Ok(await db.GetPlayerByIdAsync(player.Id)) : Results.NotFound();
             }
         );
 
@@ -92,7 +136,7 @@ public static class EndpointMapper
                     return Results.Problem("Failed to generate AI summary");
 
                 var updated = await db.UpdateGeminiTakeAsync(id, take);
-                return updated is not null ? Results.Ok(updated) : Results.NotFound();
+                return updated is not null ? Results.Ok(await db.GetPlayerByIdAsync(id)) : Results.NotFound();
             }
         );
 
@@ -104,6 +148,80 @@ public static class EndpointMapper
                 return Results.Ok(players);
             }
         );
+    }
+
+    private static void MapWowProgressEndpoints(IEndpointRouteBuilder api)
+    {
+        api.MapGet("/wowprogress/jobs/pending/{playerId:int}", (int playerId, WowProgressJobQueue jobs) => Results.Ok(new WowProgressPendingResponse(jobs.IsPending(playerId))))
+            .WithName("GetWowProgressPendingStatus")
+            .WithSummary("Read queued enrichment status from memory without querying PostgreSQL")
+            .Produces<WowProgressPendingResponse>();
+
+        api.MapPost("/wowprogress/jobs/claim", (WowProgressJobQueue jobs) => jobs.Claim() is { } job ? Results.Ok(job) : Results.NoContent())
+            .WithName("ClaimWowProgressJob")
+            .WithSummary("Lease one pending WoWProgress job from memory without querying PostgreSQL")
+            .Produces<WowProgressJobResponse>()
+            .Produces(StatusCodes.Status204NoContent);
+
+        api.MapPost(
+                "/wowprogress/jobs/{id:guid}/complete",
+                async (Guid id, CompleteWowProgressJobRequest request, WowProgressJobQueue jobs, PlayerDatabaseService db, CancellationToken cancellationToken) =>
+                {
+                    string[] outcomes =
+                    [
+                        "success",
+                        "timeout",
+                        "unavailable",
+                        "upstream_error",
+                        "not_found",
+                        "not_found_or_private",
+                        "rate_limited",
+                        "not_configured",
+                        "invalid_response",
+                        "response_too_large",
+                    ];
+                    if (
+                        !outcomes.Contains(request.Outcome)
+                        || request.LeaseId == Guid.Empty
+                        || (request.Outcome == "success" ? request.Details?.GuildHistory is null : request.Details is not null)
+                    )
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]> { ["result"] = ["Supply a valid lease, outcome, and details only for successful results."] }
+                        );
+                    return await jobs.CompleteAsync(id, request.LeaseId, job => db.SaveWowProgressAsync(job.PlayerId, request, cancellationToken))
+                        ? Results.NoContent()
+                        : Results.Problem("The job lease has expired or is no longer available.", statusCode: StatusCodes.Status409Conflict);
+                }
+            )
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(1024 * 1024))
+            .WithName("CompleteWowProgressJob")
+            .WithSummary("Store a local collector result without modifying other source snapshots")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPut(
+                "/wowprogress/discoveries",
+                (List<Player> players, WowProgressJobQueue jobs) =>
+                {
+                    if (players.Count > 500 || players.Any(player => player is null || string.IsNullOrWhiteSpace(player.CharacterName) || string.IsNullOrWhiteSpace(player.Realm)))
+                        return Results.ValidationProblem(new Dictionary<string, string[]> { ["players"] = ["Supply at most 500 players with character names and realms."] });
+                    foreach (var player in players)
+                        player.Source = LfgSource.WoWProgress;
+                    jobs.PublishDiscoveries(players);
+                    return Results.NoContent();
+                }
+            )
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(1024 * 1024))
+            .WithName("PublishWowProgressDiscoveries")
+            .WithSummary("Cache the local WoWProgress listing for the server worker; no database access")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem();
+
+        api.MapGet("/wowprogress/discoveries", (WowProgressJobQueue jobs) => Results.Ok(jobs.GetDiscoveries()))
+            .WithName("GetWowProgressDiscoveries")
+            .WithSummary("Read the cached WoWProgress listing without database access")
+            .Produces<Player[]>();
     }
 
     private static void MapSeenPlayerEndpoints(IEndpointRouteBuilder api)
