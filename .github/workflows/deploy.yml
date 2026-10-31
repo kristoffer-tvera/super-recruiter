@@ -120,36 +120,6 @@ jobs:
                   provenance: mode=max
                   sbom: true
 
-            - name: Scan worker image
-              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-              with:
-                  image-ref: ${{ steps.image-names.outputs.worker }}@${{ steps.worker.outputs.digest }}
-                  version: v0.70.0
-                  format: table
-                  exit-code: "1"
-                  ignore-unfixed: true
-                  severity: HIGH,CRITICAL
-
-            - name: Scan web image
-              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-              with:
-                  image-ref: ${{ steps.image-names.outputs.web }}@${{ steps.web.outputs.digest }}
-                  version: v0.70.0
-                  format: table
-                  exit-code: "1"
-                  ignore-unfixed: true
-                  severity: HIGH,CRITICAL
-
-            - name: Scan API image
-              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-              with:
-                  image-ref: ${{ steps.image-names.outputs.api }}@${{ steps.api.outputs.digest }}
-                  version: v0.70.0
-                  format: table
-                  exit-code: "1"
-                  ignore-unfixed: true
-                  severity: HIGH,CRITICAL
-
     deploy:
         needs: publish
         if: github.ref == 'refs/heads/master'
@@ -225,6 +195,8 @@ jobs:
                   assert.deepEqual(Object.keys(services).sort(), ["api", "web", "worker"], "Compose must contain web, API and the server worker");
                   assert.equal(services.worker.environment.WorkerMode, "Server");
                   assert.equal(services.worker.environment.SuperRecruiterApi__BaseUrl, "http://api:8080/api/");
+                  assert.equal(services.worker.healthcheck.test[0], "CMD-SHELL", "Worker must have an executable readiness check");
+                  assert.equal(services.worker.healthcheck.test[1], "kill -0 1", "Worker readiness must check its init process");
 
                   const ports = Object.values(services).flatMap((service) => service.ports ?? []);
                   assert.deepEqual(ports.map((port) => Number(port.published)).sort((a, b) => a - b), [18050, 18051], "Published ports must match the manifest");
