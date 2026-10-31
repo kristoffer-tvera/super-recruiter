@@ -22,6 +22,7 @@ export interface PlayerResponse {
     languages?: string;
     specsPlaying?: string;
     guildHistory: string[];
+    sources: number[];
     raiderIoSummary?: string;
     warcraftLogsSummary?: string;
     geminiTake?: string;

@@ -37,13 +37,9 @@ public static class PlayerSummaryHelper
 
     public static string GetCurrentExpansionProgressionSummary(RaiderIOProfile? profile)
     {
-        var header = "## __Current Expansion Progression__";
-
-        if (profile?.Raid_progression_summary == null)
-            return $"{header}\n- No raid data";
-
-        var progression = string.Join("\n- ", profile.Raid_progression_summary);
-        return $"{header}\n- {progression}";
+        var header = "## __Recent Progress__";
+        var progression = profile?.Raid_progression_summary?.Where(summary => !string.IsNullOrWhiteSpace(summary)).ToArray() ?? [];
+        return progression.Length == 0 ? header : $"{header}\n- {string.Join("\n- ", progression)}";
     }
 
     public static string GetCurrentExpansionProgressForDiscord(RaiderIOProfile? profile)

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { fetchPlayers, fetchPlayerByCharacterAndRealm, updatePlayerStatus, requestAiSummary } from "../api";
 import { type PlayerResponse, PlayerStatus, type PlayerFilter } from "../types";
-import { STATUS_LABELS, STATUS_BADGE, CLASS_COLORS, CLASS_ICONS } from "../constants";
+import { STATUS_LABELS, STATUS_BADGE, CLASS_COLORS, CLASS_ICONS, DISCOVERY_SOURCE_LABELS } from "../constants";
 import FilterBar from "../components/FilterBar";
 import PlayerDetailModal from "../components/PlayerDetailModal";
 
@@ -190,7 +190,16 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
                                     color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
                                 }}
                             >
-                                {p.characterName}
+                                <span>{p.characterName}</span>
+                                {p.sources?.length > 0 && (
+                                    <span className="d-flex flex-wrap gap-1 mt-1 fw-normal">
+                                        {p.sources.map((source) => (
+                                            <span key={source} className="badge bg-secondary">
+                                                {DISCOVERY_SOURCE_LABELS[source] ?? "Other"}
+                                            </span>
+                                        ))}
+                                    </span>
+                                )}
                             </div>
                             <div className="col-md-1">
                                 {CLASS_ICONS[p.class.toLowerCase()] && <img src={CLASS_ICONS[p.class.toLowerCase()]} alt={p.class} style={{ width: 20, height: 20 }} />}

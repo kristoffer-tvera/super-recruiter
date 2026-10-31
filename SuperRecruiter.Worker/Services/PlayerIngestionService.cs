@@ -133,6 +133,7 @@ public class PlayerIngestionService(
             Languages = detailedPlayer.Languages,
             SpecsPlaying = detailedPlayer.SpecsPlaying,
             GuildHistory = detailedPlayer.GuildHistory.ToList(),
+            Sources = detailedPlayer.Sources.Count > 0 ? detailedPlayer.Sources.Distinct().ToArray() : new[] { detailedPlayer.Source },
         };
     }
 }

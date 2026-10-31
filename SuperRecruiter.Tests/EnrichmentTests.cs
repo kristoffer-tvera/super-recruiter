@@ -107,7 +107,11 @@ public sealed class EnrichmentTests
         var roundTrip = JsonSerializer.Deserialize<SourceSnapshot>(JsonSerializer.Serialize(snapshot, JsonOptions), JsonOptions)!;
         Assert.Equal(2, roundTrip.Data!.Value.GetProperty("profile").GetProperty("unknown").GetProperty("nested").GetArrayLength());
         Assert.Equal(JsonValueKind.Object, roundTrip.Data.Value.ValueKind);
-        Assert.Contains("old", projection.RaiderIoSummary);
+        Assert.Contains("Ahead of the Curve / Cutting Edge", projection.RaiderIoSummary);
+        Assert.DoesNotContain("old", projection.RaiderIoSummary);
+
+        var summary = PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(new RaiderIOProfile { Raid_progression_summary = ["", "  ", "**Recent Raid** | 4/8 H"] });
+        Assert.Equal("## __Recent Progress__\n- **Recent Raid** | 4/8 H", summary);
     }
 
     [Fact]
@@ -413,6 +417,7 @@ public sealed class EnrichmentTests
             RaiderIoSummary = "Legacy summary",
             BattleTag = "Old#123",
             DiscordMessageId = 123,
+            Sources = new[] { LfgSource.WoWProgress, LfgSource.RaiderIO },
         };
         var player = await database.UpsertPlayerAsync(request);
         try
@@ -431,6 +436,7 @@ public sealed class EnrichmentTests
             await database.InitializeDatabaseAsync();
             Assert.True(await database.IsReadyAsync());
             Assert.Equal("Legacy summary", (await database.GetPlayerByIdAsync(player.Id))!.RaiderIoSummary);
+            Assert.Equal(new[] { (int)LfgSource.WoWProgress, (int)LfgSource.RaiderIO }, (await database.GetPlayerByIdAsync(player.Id))!.Sources);
             await database.UpdatePlayerStatusAsync(player.Id, PlayerStatus.Interested);
             var raw = Element("""{"profile":{"unknown":true},"currentTier":CURRENT}""".Replace("CURRENT", Current));
             var snapshot = Snapshot(raw);

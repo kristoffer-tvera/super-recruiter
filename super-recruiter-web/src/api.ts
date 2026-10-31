@@ -95,7 +95,7 @@ export class EnrichmentRequestError extends Error {
 }
 
 export async function fetchPlayerEnrichment(id: number): Promise<PlayerEnrichmentResponse> {
-    const response = await fetch(`${BASE}/players/${id}/enrichment?includeData=false`, { headers: withApiKey() });
+    const response = await fetch(`${BASE}/players/${id}/enrichment?includeData=true`, { headers: withApiKey() });
     if (!response.ok) throw new Error("Unable to read source status");
     return response.json();
 }

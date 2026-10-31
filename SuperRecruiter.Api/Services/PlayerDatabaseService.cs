@@ -42,6 +42,7 @@ public partial class PlayerDatabaseService
                     ('players', 'languages'),
                     ('players', 'specs_playing'),
                     ('players', 'guild_history'),
+                    ('players', 'sources'),
                     ('players', 'raiderio_summary'),
                     ('players', 'warcraftlogs_summary'),
                     ('players', 'gemini_take'),
@@ -97,6 +98,7 @@ public partial class PlayerDatabaseService
                 languages VARCHAR(500),
                 specs_playing VARCHAR(500),
                 guild_history TEXT[] DEFAULT '{}',
+                sources INTEGER[],
                 raiderio_summary TEXT,
                 warcraftlogs_summary TEXT,
                 gemini_take TEXT,
@@ -152,6 +154,7 @@ public partial class PlayerDatabaseService
         await connection.ExecuteAsync(
             """
             ALTER TABLE players ADD COLUMN IF NOT EXISTS discovery_progression JSONB;
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS sources INTEGER[];
             ALTER TABLE players ADD COLUMN IF NOT EXISTS raiderio_data JSONB;
             ALTER TABLE players ADD COLUMN IF NOT EXISTS warcraftlogs_data JSONB;
             ALTER TABLE players ADD COLUMN IF NOT EXISTS wowprogress_data JSONB;
@@ -169,7 +172,7 @@ public partial class PlayerDatabaseService
         @"SELECT id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
             item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
             battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-            guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+            guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
             warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
             status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
             current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
@@ -254,11 +257,11 @@ public partial class PlayerDatabaseService
         var sql =
             @"
             INSERT INTO players (character_name, class, realm, realm_slug, item_level, last_updated,
-                character_url, battletag, bio, languages, specs_playing, guild_history,
+                character_url, battletag, bio, languages, specs_playing, guild_history, sources,
                 raiderio_summary, warcraftlogs_summary, status,
                 discord_message_id, discord_channel_id, current_tier_mythic_kill_count, discovery_progression, created_at, updated_at)
             VALUES (@CharacterName, @Class, @Realm, @RealmSlug, @ItemLevel, @LastUpdated,
-                @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory,
+                @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory, @Sources,
                 @RaiderIoSummary, @WarcraftLogsSummary, @Status,
                 @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, CAST(@DiscoveryProgression AS jsonb), @Now, @Now)
             ON CONFLICT (character_name, realm)
@@ -269,6 +272,11 @@ public partial class PlayerDatabaseService
                 languages = COALESCE(NULLIF(NULLIF(@Languages, ''), 'N/A'), players.languages),
                 specs_playing = COALESCE(NULLIF(@SpecsPlaying, ''), players.specs_playing),
                 guild_history = CASE WHEN cardinality(@GuildHistory) > 0 THEN @GuildHistory ELSE players.guild_history END,
+                sources = CASE WHEN cardinality(@Sources) > 0 THEN ARRAY(
+                    SELECT DISTINCT source_value
+                    FROM unnest(COALESCE(players.sources, ARRAY[]::INTEGER[]) || @Sources) AS discovered(source_value)
+                    ORDER BY source_value
+                ) ELSE players.sources END,
                 discord_message_id = COALESCE(@DiscordMessageId, players.discord_message_id),
                 discord_channel_id = COALESCE(@DiscordChannelId, players.discord_channel_id),
                 discovery_progression = COALESCE(CAST(@DiscoveryProgression AS jsonb), players.discovery_progression),
@@ -278,7 +286,7 @@ public partial class PlayerDatabaseService
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
@@ -306,6 +314,7 @@ public partial class PlayerDatabaseService
                 DiscordMessageId = (long?)request.DiscordMessageId,
                 DiscordChannelId = (long?)request.DiscordChannelId,
                 request.CurrentTierMythicKillCount,
+                Sources = request.Sources.Where(source => Enum.IsDefined(typeof(LfgSource), source)).Select(source => (int)source).Distinct().ToArray(),
                 DiscoveryProgression = request.DiscoveryProgression is null ? null : JsonSerializer.Serialize(request.DiscoveryProgression, SnapshotJsonOptions),
                 Now = DateTime.UtcNow,
             }
@@ -322,7 +331,7 @@ public partial class PlayerDatabaseService
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
@@ -349,7 +358,7 @@ public partial class PlayerDatabaseService
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
@@ -391,7 +400,7 @@ public partial class PlayerDatabaseService
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
                 battletag AS BattleTag, bio, languages, specs_playing AS SpecsPlaying,
-                guild_history AS GuildHistory, raiderio_summary AS RaiderIoSummary,
+                guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
                 current_tier_mythic_kill_count AS CurrentTierMythicKillCount,

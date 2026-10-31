@@ -88,10 +88,21 @@ public class ScraperWorker(
         var wowProgressPlayers = await wowProgressTask;
         var raiderIoPlayers = await raiderIoTask;
 
+        return MergePlayers(wowProgressPlayers, raiderIoPlayers);
+    }
+
+    internal static List<Player> MergePlayers(IEnumerable<Player> wowProgressPlayers, IEnumerable<Player> raiderIoPlayers)
+    {
         return wowProgressPlayers
             .Concat(raiderIoPlayers)
             .GroupBy(p => $"{p.CharacterName}-{p.Realm}".ToLowerInvariant())
-            .Select(g => g.OrderByDescending(p => p.LastUpdated).First())
+            .Select(group =>
+            {
+                var candidates = group.ToList();
+                var selected = candidates.OrderByDescending(player => player.LastUpdated).First();
+                selected.Sources = candidates.SelectMany(player => player.Sources.Count > 0 ? player.Sources.AsEnumerable() : new[] { player.Source }).Distinct().ToList();
+                return selected;
+            })
             .ToList();
     }
 

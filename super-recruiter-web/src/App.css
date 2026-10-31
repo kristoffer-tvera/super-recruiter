@@ -1,24 +1,63 @@
 /* App-specific styles — Bootstrap handles the rest */
 
 .api-key-lock {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 1050;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  background: rgba(33, 37, 41, 0.9);
-  color: #fff;
-  font-size: 1.1rem;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1050;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    background: rgba(33, 37, 41, 0.9);
+    color: #fff;
+    font-size: 1.1rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
 
 .api-key-lock:hover {
-  background: rgba(52, 58, 64, 0.95);
+    background: rgba(52, 58, 64, 0.95);
+}
+
+.wcl-ranking-best {
+    background-color: #58a6ff;
+    border-radius: 0 2px 2px 0;
+}
+
+.wcl-ranking-median {
+    background-color: #f0ad4e;
+    border-radius: 2px 0 0 2px;
+}
+
+.wcl-ranking-row {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wcl-ranking-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 1.25rem;
+}
+
+.wcl-ranking-track {
+    position: relative;
+    height: 0.5rem;
+    overflow: hidden;
+    border-radius: 2px;
+    background-color: #343a40;
+    background-image: linear-gradient(to right, transparent calc(50% - 1px), rgba(255, 255, 255, 0.2) 50%, transparent calc(50% + 1px));
+}
+
+.wcl-ranking-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    height: 100%;
 }

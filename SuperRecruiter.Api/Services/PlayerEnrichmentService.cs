@@ -103,8 +103,7 @@ public sealed class PlayerEnrichmentService(
             raiderSummary = TryProject(() =>
             {
                 var profile = rawRaider.GetProperty("profile").Deserialize<RaiderIOProfile>(JsonOptions)!;
-                profile.Raid_progression_summary = profile.Raid_progression?.Select(raid => $"**{raid.Key}** | {raid.Value.Summary}").ToList();
-                return string.Join("\n\n", PlayerSummaryHelper.GetCurrentExpansionProgressionSummary(profile), PlayerSummaryHelper.GetCuttingEdgeSummary(profile));
+                return PlayerSummaryHelper.GetCuttingEdgeSummary(profile);
             });
             progression = TryProject(() =>
             {

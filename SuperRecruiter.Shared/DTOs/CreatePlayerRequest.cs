@@ -1,5 +1,7 @@
 namespace SuperRecruiter.Shared.DTOs;
 
+using SuperRecruiter.Shared.Models;
+
 public class CreatePlayerRequest
 {
     public string CharacterName { get; set; } = string.Empty;
@@ -14,6 +16,7 @@ public class CreatePlayerRequest
     public string? Languages { get; set; }
     public string? SpecsPlaying { get; set; }
     public List<string> GuildHistory { get; set; } = [];
+    public LfgSource[] Sources { get; set; } = [];
 
     // Legacy ingestion compatibility; enrichment updates are owned by the API.
     public string? RaiderIoSummary { get; set; }

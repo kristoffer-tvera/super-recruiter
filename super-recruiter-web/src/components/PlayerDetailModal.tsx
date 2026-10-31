@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { type PlayerResponse, type PlayerEnrichmentResponse, PlayerStatus } from "../types";
 import { EnrichmentRequestError, fetchPlayer, fetchPlayerEnrichment, fetchWowProgressPending, refreshPlayerEnrichment } from "../api";
-import { STATUS_LABELS, CLASS_COLORS } from "../constants";
+import { STATUS_LABELS, CLASS_COLORS, DISCOVERY_SOURCE_LABELS } from "../constants";
 
 interface PlayerDetailModalProps {
     player: PlayerResponse;
@@ -14,6 +14,142 @@ interface PlayerDetailModalProps {
     onPlayerUpdated: (player: PlayerResponse) => void;
 }
 
+interface RaidProgress {
+    summary?: string;
+    total_bosses?: number;
+    normal_bosses_killed?: number;
+    heroic_bosses_killed?: number;
+    mythic_bosses_killed?: number;
+}
+
+interface RaiderIoSnapshotData {
+    profile?: {
+        raid_progression?: Record<string, RaidProgress>;
+        raid_achievement_curve?: RaidAchievement[];
+    };
+}
+
+interface RaidAchievement {
+    raid?: string;
+    aotc?: string | null;
+    cutting_edge?: string | null;
+}
+
+interface WarcraftLogsRanking {
+    encounter?: { name?: string };
+    rankPercent?: number | string | null;
+    medianPercent?: number | string | null;
+    totalKills?: number;
+}
+
+interface WarcraftLogsZoneRankings {
+    rankings?: WarcraftLogsRanking[];
+    allStars?: { spec?: string; rankPercent?: number | string; points?: number; possiblePoints?: number }[];
+}
+
+interface WarcraftLogsSnapshotData {
+    data?: { characterData?: { character?: { zoneRankings?: WarcraftLogsZoneRankings } } };
+}
+
+function parsePercent(value: number | string | null | undefined) {
+    const parsed = typeof value === "number" ? value : Number.parseFloat(value ?? "");
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : null;
+}
+
+function getRecentProgress(data: unknown) {
+    const progression = (data as RaiderIoSnapshotData | undefined)?.profile?.raid_progression;
+    return Object.entries(progression ?? {}).flatMap(([raidSlug, raid]) => {
+        const normal = raid.normal_bosses_killed ?? 0;
+        const heroic = raid.heroic_bosses_killed ?? 0;
+        const mythic = raid.mythic_bosses_killed ?? 0;
+        if (normal + heroic + mythic === 0) return [];
+
+        const total = raid.total_bosses || "?";
+        const summary = raid.summary?.trim() || `${mythic || heroic || normal}/${total} ${mythic ? "M" : heroic ? "H" : "N"}`;
+        return [
+            {
+                name: raidSlug
+                    .split("-")
+                    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                    .join(" "),
+                summary,
+                color: mythic > 0 ? "#c792ea" : heroic > 0 ? "#58a6ff" : "#62c370",
+            },
+        ];
+    });
+}
+
+function getAchievementProgress(data: unknown) {
+    const achievements = (data as RaiderIoSnapshotData | undefined)?.profile?.raid_achievement_curve;
+    return (achievements ?? []).flatMap((achievement) => {
+        const difficulty = achievement.cutting_edge ? "Mythic" : achievement.aotc ? "Heroic" : null;
+        if (!difficulty) return [];
+
+        const raidName = achievement.raid
+            ?.split("-")
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ");
+        const dateValue = achievement.cutting_edge ?? achievement.aotc;
+        const date = dateValue ? new Date(dateValue).toLocaleDateString() : "";
+        return [
+            {
+                name: raidName || "Raid",
+                difficulty,
+                date,
+                color: difficulty === "Mythic" ? "#c792ea" : "#58a6ff",
+            },
+        ];
+    });
+}
+
+function getLegacyAchievementProgress(summary?: string) {
+    if (!summary) return [];
+    const heading = "## __Ahead of the Curve / Cutting Edge__";
+    const headingIndex = summary.indexOf(heading);
+    if (headingIndex < 0) return [];
+
+    return summary
+        .slice(headingIndex + heading.length)
+        .split("\n")
+        .flatMap((line) => {
+            const match = line.match(/^\s*-\s+\*\*(.+?)\*\*\s+\|\s+(Mythic|Heroic)(?:\s+\|\s+(.+))?$/);
+            if (!match) return [];
+            const [, name, difficulty, date = ""] = match;
+            return [
+                {
+                    name,
+                    difficulty,
+                    date,
+                    color: difficulty === "Mythic" ? "#c792ea" : "#58a6ff",
+                },
+            ];
+        });
+}
+
+function getWarcraftLogsView(data: unknown) {
+    const rankings = (data as WarcraftLogsSnapshotData | undefined)?.data?.characterData?.character?.zoneRankings;
+    if (!rankings) return null;
+
+    const bosses = (rankings.rankings ?? []).flatMap((ranking) => {
+        const best = parsePercent(ranking.rankPercent);
+        const median = parsePercent(ranking.medianPercent);
+        if (ranking.totalKills === 0 || (best === null && median === null)) return [];
+        return [
+            {
+                name: ranking.encounter?.name || "Encounter",
+                totalKills: ranking.totalKills ?? 0,
+                best,
+                median,
+            },
+        ];
+    });
+
+    return {
+        bosses,
+        allStars: rankings.allStars ?? [],
+    };
+}
+
 export default function PlayerDetailModal({ player, aiLoading, onClose, onStatusChange, onRequestAi, onPlayerUpdated }: PlayerDetailModalProps) {
     const [enrichment, setEnrichment] = useState<PlayerEnrichmentResponse | null>(null);
     const [metadataLoading, setMetadataLoading] = useState(true);
@@ -22,6 +158,10 @@ export default function PlayerDetailModal({ player, aiLoading, onClose, onStatus
     const [retryAt, setRetryAt] = useState(0);
     const wowProgressPending = enrichment?.wowProgress?.outcome === "pending";
     const aiStale = !!player.geminiTake && !!player.enrichedAt && (!player.geminiGeneratedAt || new Date(player.enrichedAt) > new Date(player.geminiGeneratedAt));
+    const recentProgress = getRecentProgress(enrichment?.raiderIo?.data);
+    const hasAchievementSnapshot = Array.isArray((enrichment?.raiderIo?.data as RaiderIoSnapshotData | undefined)?.profile?.raid_achievement_curve);
+    const achievementProgress = hasAchievementSnapshot ? getAchievementProgress(enrichment?.raiderIo?.data) : getLegacyAchievementProgress(player.raiderIoSummary);
+    const warcraftLogs = getWarcraftLogsView(enrichment?.warcraftLogs?.data);
 
     useEffect(() => {
         let cancelled = false;
@@ -80,9 +220,14 @@ export default function PlayerDetailModal({ player, aiLoading, onClose, onStatus
         setError(null);
         try {
             const result = await refreshPlayerEnrichment(player.id);
-            setEnrichment(result.enrichment);
             onPlayerUpdated(result.player);
             setRetryAt(Date.now() + 60_000);
+            setEnrichment(result.enrichment);
+            try {
+                setEnrichment(await fetchPlayerEnrichment(player.id));
+            } catch {
+                setError("Source refresh succeeded, but Raider.IO details could not be reloaded");
+            }
         } catch (exception) {
             setError(exception instanceof Error ? exception.message : "Unable to refresh player data");
             if (exception instanceof EnrichmentRequestError && exception.retryAfterSeconds > 0) setRetryAt(Date.now() + exception.retryAfterSeconds * 1000);
@@ -113,6 +258,10 @@ export default function PlayerDetailModal({ player, aiLoading, onClose, onStatus
                         <div className="modal-body">
                             <p>
                                 <strong>Class:</strong> {player.class} &middot; <strong>iLvl:</strong> {player.itemLevel.toFixed(1)}
+                            </p>
+                            <p>
+                                <strong>Found via:</strong>{" "}
+                                {player.sources?.length ? player.sources.map((source) => DISCOVERY_SOURCE_LABELS[source] ?? "Other").join(", ") : "Unknown"}
                             </p>
                             {player.battleTag && (
                                 <p>
@@ -223,22 +372,99 @@ export default function PlayerDetailModal({ player, aiLoading, onClose, onStatus
 
                             <div className="row mb-3">
                                 {/* Raider.IO Summary */}
-                                {player.raiderIoSummary && (
-                                    <div className="col">
-                                        <h6>Raider.IO</h6>
-                                        <div className="small">
-                                            <Markdown>{player.raiderIoSummary}</Markdown>
+                                {(recentProgress.length > 0 || achievementProgress.length > 0) && (
+                                    <div className="col-12">
+                                        <h5>Raider.IO</h5>
+                                        <div className="row">
+                                            {recentProgress.length > 0 && (
+                                                <section className="col-12 col-md-6">
+                                                    <h6 className="mt-3">Recent Progress</h6>
+                                                    <ul className="list-unstyled small mb-2">
+                                                        {recentProgress.map((raid) => (
+                                                            <li key={raid.name} style={{ color: raid.color }}>
+                                                                <strong>{raid.name}</strong> | {raid.summary}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </section>
+                                            )}
+                                            {achievementProgress.length > 0 && (
+                                                <section className="col-12 col-md-6">
+                                                    <h6 className="mt-3">Ahead of the Curve / Cutting Edge</h6>
+                                                    <ul className="list-unstyled small mb-2">
+                                                        {achievementProgress.map((achievement) => (
+                                                            <li key={achievement.name} style={{ color: achievement.color }}>
+                                                                <strong>{achievement.name}</strong> | {achievement.difficulty}
+                                                                {achievement.date && ` | ${achievement.date}`}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </section>
+                                            )}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Warcraft Logs Summary */}
-                                {player.warcraftLogsSummary && (
-                                    <div className="col">
-                                        <h6>Warcraft Logs</h6>
-                                        <div className="small">
-                                            <Markdown>{player.warcraftLogsSummary}</Markdown>
-                                        </div>
+                                {warcraftLogs && (
+                                    <div className="col-12">
+                                        <h5>Warcraft Logs</h5>
+                                        {warcraftLogs.bosses.length > 0 && (
+                                            <section aria-label="Warcraft Logs boss rankings">
+                                                <h6>Boss rankings</h6>
+                                                <div className="wcl-ranking-chart">
+                                                    {warcraftLogs.bosses.map((boss) => (
+                                                        <div className="wcl-ranking-row" key={boss.name}>
+                                                            <div className="d-flex justify-content-between gap-2 small mb-1">
+                                                                <strong>{boss.name}</strong>
+                                                                <span className="text-muted">
+                                                                    {boss.totalKills} {boss.totalKills === 1 ? "kill" : "kills"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="wcl-ranking-bar-row small">
+                                                                {(() => {
+                                                                    const medianWidth = boss.median === null ? 0 : Math.min(boss.median, boss.best ?? boss.median);
+                                                                    const bestWidth = boss.best === null ? 0 : Math.max(0, boss.best - medianWidth);
+                                                                    return (
+                                                                        <div
+                                                                            className="wcl-ranking-track"
+                                                                            role="img"
+                                                                            aria-label={`Best parse ${boss.best === null ? "unavailable" : `${boss.best.toFixed(0)} percent`}; median ${boss.median === null ? "unavailable" : `${boss.median.toFixed(0)} percent`}`}
+                                                                        >
+                                                                            {medianWidth > 0 && (
+                                                                                <div className="wcl-ranking-bar wcl-ranking-median" style={{ width: `${medianWidth}%` }} />
+                                                                            )}
+                                                                            {bestWidth > 0 && (
+                                                                                <div
+                                                                                    className="wcl-ranking-bar wcl-ranking-best"
+                                                                                    style={{ left: `${medianWidth}%`, width: `${bestWidth}%` }}
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                <span className="text-end">{boss.best === null ? "-" : `${boss.best.toFixed(0)}%`}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </section>
+                                        )}
+                                        {warcraftLogs.allStars.length > 0 && (
+                                            <section className="small mt-3">
+                                                <h6>All-stars</h6>
+                                                <ul className="list-unstyled mb-0">
+                                                    {warcraftLogs.allStars.map((star) => (
+                                                        <li key={star.spec}>
+                                                            <strong>{star.spec}</strong> | {parsePercent(star.rankPercent)?.toFixed(0) ?? "-"}%
+                                                            {star.points !== undefined &&
+                                                                star.possiblePoints !== undefined &&
+                                                                ` | ${star.points.toFixed(0)} / ${star.possiblePoints}`}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </section>
+                                        )}
                                     </div>
                                 )}
                             </div>

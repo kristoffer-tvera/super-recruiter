@@ -71,6 +71,30 @@ public sealed class WorkerTests
     }
 
     [Fact]
+    public void MergingDuplicateCandidatesPreservesEveryDiscoverySource()
+    {
+        var wowProgress = new Player
+        {
+            CharacterName = "Example",
+            Realm = "Silvermoon",
+            LastUpdated = new DateTime(2026, 10, 25),
+            Source = LfgSource.WoWProgress,
+        };
+        var raiderIo = new Player
+        {
+            CharacterName = "EXAMPLE",
+            Realm = "SILVERMOON",
+            LastUpdated = new DateTime(2026, 10, 26),
+            Source = LfgSource.RaiderIO,
+        };
+
+        var merged = Assert.Single(ScraperWorker.MergePlayers(new[] { wowProgress }, new[] { raiderIo }));
+
+        Assert.Equal(raiderIo.LastUpdated, merged.LastUpdated);
+        Assert.Equal(new[] { LfgSource.WoWProgress, LfgSource.RaiderIO }, merged.Sources.OrderBy(source => source).ToArray());
+    }
+
+    [Fact]
     public async Task UnchangedFeedDoesNotRefreshCacheOrRunMaintenance()
     {
         using var fixture = new WorkerFixture();

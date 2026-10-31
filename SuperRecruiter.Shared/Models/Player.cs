@@ -18,6 +18,7 @@ public class Player
     public string? SpecsPlaying { get; set; }
 
     public string[] GuildHistory { get; set; } = [];
+    public List<LfgSource> Sources { get; set; } = [];
 
     public LfgSource Source { get; set; }
 
