@@ -13,7 +13,7 @@ WORKDIR /src/SuperRecruiter.Worker
 RUN dotnet publish "SuperRecruiter.Worker.csproj" -c Release -o /app --no-restore /p:UseAppHost=false
 
 # Stage 2: Final lightweight runtime
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/runtime:11.0 AS final
 WORKDIR /app
 
 # Copy the compiled binaries from the build stage
