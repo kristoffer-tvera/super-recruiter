@@ -28,5 +28,6 @@ public class CreatePlayerRequest
 
     // Mythic progression
     public int CurrentTierMythicKillCount { get; set; }
+    public int TrackedRaidTotalBosses { get; set; }
     public DiscoveryProgression? DiscoveryProgression { get; set; }
 }

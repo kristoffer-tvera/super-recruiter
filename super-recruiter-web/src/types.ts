@@ -31,6 +31,8 @@ export interface PlayerResponse {
     status: PlayerStatus;
     discordMessageId?: number;
     discordChannelId?: number;
+    currentTierMythicKillCount: number;
+    trackedRaidTotalBosses: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -66,6 +68,7 @@ export interface PlayerFilter {
 
 export interface AdminConfig {
     bossKills: number;
+    trackedRaid: string;
     acceptedClasses: string[];
 }
 

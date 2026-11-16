@@ -292,6 +292,7 @@ public sealed class EnrichmentTests
         {
             builder.UseSetting("ConnectionStrings:PostgreSQL", Environment.GetEnvironmentVariable("SUPER_RECRUITER_TEST_POSTGRES"));
             builder.UseSetting("ApiKey", "test-api-key");
+            builder.UseSetting("Enrichment:Automatic", "false");
             builder.UseSetting("RaiderIO:ApiKey", "test");
             builder.UseSetting("WarcraftLogs:ClientId", "test");
             builder.UseSetting("WarcraftLogs:ClientSecret", "test");

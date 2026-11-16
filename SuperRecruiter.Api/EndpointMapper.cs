@@ -98,9 +98,10 @@ public static class EndpointMapper
 
         api.MapPost(
             "/players",
-            async (PlayerDatabaseService db, CreatePlayerRequest request) =>
+            async (PlayerDatabaseService db, AutomaticEnrichmentService automaticEnrichment, CreatePlayerRequest request) =>
             {
                 var player = await db.UpsertPlayerAsync(request);
+                automaticEnrichment.Enqueue(player.Id);
                 return Results.Created($"/api/players/{player.Id}", player);
             }
         );

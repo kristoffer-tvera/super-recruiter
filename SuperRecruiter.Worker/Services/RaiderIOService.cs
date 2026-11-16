@@ -30,7 +30,8 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
         string realm,
         string characterName,
         CancellationToken cancellationToken = default,
-        bool includeGear = false
+        bool includeGear = false,
+        string? trackedRaid = null
     )
     {
         try
@@ -51,7 +52,7 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
                     ["region"] = region,
                     ["realm"] = normalizedRealm,
                     ["name"] = characterName,
-                    ["fields"] = includeGear ? "gear,raid_progression:current-tier" : "raid_progression:current-tier",
+                    ["fields"] = (includeGear ? "gear," : "") + (trackedRaid is null ? "raid_progression:current-tier" : "raid_progression:current-expansion"),
                 }
             );
 
@@ -76,6 +77,14 @@ public class RaiderIOService(ILogger<RaiderIOService> logger, HttpClient httpCli
             {
                 logger.LogWarning("RaiderIO returned an empty profile for {Character} on {Realm}", characterName, normalizedRealm);
                 return null;
+            }
+
+            if (trackedRaid is not null)
+            {
+                // Keep only the configured raid; a missing raid leaves an empty set (0 kills).
+                profile.Raid_progression = profile.Raid_progression is { } all && all.TryGetValue(trackedRaid, out var tier)
+                    ? new Dictionary<string, RaidTier> { [trackedRaid] = tier }
+                    : [];
             }
 
             NormalizeProfile(profile);

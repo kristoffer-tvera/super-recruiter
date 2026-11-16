@@ -415,7 +415,8 @@ public partial class DiscordBotService : IHostedService
                 return;
             }
 
-            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true);
+            var trackedRaid = PlayerIngestionService.NormalizeTrackedRaid((await scope.ServiceProvider.GetRequiredService<AdminFilterService>().GetConfigAsync())?.TrackedRaid);
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true, trackedRaid: trackedRaid);
             if (profile == null)
             {
                 await command.FollowupAsync($"No Raider.IO profile found for **{characterName}-{realm.Name}**. Check the spelling and realm.", ephemeral: true);
@@ -498,7 +499,8 @@ public partial class DiscordBotService : IHostedService
             var raiderIoService = scope.ServiceProvider.GetRequiredService<RaiderIOService>();
             var ingestionService = scope.ServiceProvider.GetRequiredService<PlayerIngestionService>();
 
-            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true);
+            var trackedRaid = PlayerIngestionService.NormalizeTrackedRaid((await scope.ServiceProvider.GetRequiredService<AdminFilterService>().GetConfigAsync())?.TrackedRaid);
+            var profile = await raiderIoService.GetCharacterProfileAsync("eu", realm.Slug, characterName, includeGear: true, trackedRaid: trackedRaid);
             if (profile == null)
             {
                 await component.ModifyOriginalResponseAsync(msg => msg.Content = $"No Raider.IO profile found for **{characterName}-{realm.Name}** anymore.");

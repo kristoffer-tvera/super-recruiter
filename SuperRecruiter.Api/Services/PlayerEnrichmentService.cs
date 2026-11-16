@@ -17,7 +17,7 @@ public sealed class PlayerEnrichmentService(
     private readonly SemaphoreSlim _capacity = new(2, 2);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<PlayerEnrichmentRefreshResponse> RefreshAsync(PlayerResponse player, CancellationToken cancellationToken)
+    public async Task<PlayerEnrichmentRefreshResponse> RefreshAsync(PlayerResponse player, CancellationToken cancellationToken, bool includeWowProgress = true)
     {
         if (!_active.TryAdd(player.Id, 0))
             throw new EnrichmentBusyException(false);
@@ -35,10 +35,11 @@ public sealed class PlayerEnrichmentService(
             await Task.WhenAll(raiderIo, warcraftLogs);
             var snapshots = new PlayerEnrichmentResponse(await raiderIo, await warcraftLogs, null);
             cancellationToken.ThrowIfCancellationRequested();
-            await database.SaveEnrichmentAsync(player.Id, snapshots, Project(snapshots), cancellationToken);
-            var queued = wowProgressJobs.Enqueue(player);
+            var trackedRaid = (await database.GetAdminConfigAsync()).TrackedRaid;
+            await database.SaveEnrichmentAsync(player.Id, snapshots, Project(snapshots, trackedRaid), cancellationToken);
+            var queued = includeWowProgress && wowProgressJobs.Enqueue(player);
             snapshots = snapshots with { WowProgress = previous.WowProgress };
-            snapshots = queued
+            snapshots = !includeWowProgress ? snapshots : queued
                 ? wowProgressJobs.WithPending(snapshots, player.Id)
                 : snapshots with
                 {
@@ -92,7 +93,7 @@ public sealed class PlayerEnrichmentService(
             snapshots.WowProgress is { } wowProgress ? wowProgress with { Data = null } : null
         );
 
-    public static EnrichmentProjection Project(PlayerEnrichmentResponse snapshots)
+    public static EnrichmentProjection Project(PlayerEnrichmentResponse snapshots, string? trackedRaid = null)
     {
         string? raiderSummary = null;
         string? logsSummary = null;
@@ -107,6 +108,15 @@ public sealed class PlayerEnrichmentService(
             });
             progression = TryProject(() =>
             {
+                if (!string.IsNullOrWhiteSpace(trackedRaid))
+                {
+                    // The configured raid is read from the expansion-wide profile; a missing raid means no progress in it.
+                    var profile = rawRaider.GetProperty("profile").Deserialize<RaiderIOProfile>(JsonOptions);
+                    var tracked = new Dictionary<string, RaidTier>();
+                    if (profile?.Raid_progression is { } all && all.TryGetValue(trackedRaid.Trim().ToLowerInvariant(), out var tier))
+                        tracked[trackedRaid.Trim().ToLowerInvariant()] = tier;
+                    return new DiscoveryProgression(snapshots.RaiderIo.FetchedAt!.Value, tracked);
+                }
                 var current = rawRaider.GetProperty("currentTier").Deserialize<RaiderIOProfile>(JsonOptions);
                 return current?.Raid_progression is { Count: > 0 } raids ? new DiscoveryProgression(snapshots.RaiderIo.FetchedAt!.Value, raids) : null;
             });

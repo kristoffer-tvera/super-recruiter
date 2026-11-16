@@ -58,6 +58,7 @@ public partial class PlayerDatabaseService
                     guild_history = COALESCE(@GuildHistory, guild_history),
                     discovery_progression = COALESCE(CAST(@Progression AS jsonb), discovery_progression),
                     current_tier_mythic_kill_count = COALESCE(@MythicKills, current_tier_mythic_kill_count),
+                    tracked_raid_total_bosses = COALESCE(@TotalBosses, tracked_raid_total_bosses),
                     enriched_at = CASE WHEN @Succeeded THEN CURRENT_TIMESTAMP ELSE enriched_at END,
                     updated_at = CASE WHEN @Succeeded THEN CURRENT_TIMESTAMP AT TIME ZONE 'UTC' ELSE updated_at END
                 WHERE id = @Id
@@ -77,6 +78,7 @@ public partial class PlayerDatabaseService
                     GuildHistory = projection.Details?.GuildHistory,
                     Progression = projection.Progression is null ? null : JsonSerializer.Serialize(projection.Progression, SnapshotJsonOptions),
                     MythicKills = projection.Progression?.Raids.Values.Sum(raid => raid.Mythic_bosses_killed),
+                    TotalBosses = projection.Progression?.Raids.Values.Sum(raid => raid.Total_bosses),
                     Succeeded = new[] { snapshots.RaiderIo, snapshots.WarcraftLogs, snapshots.WowProgress }.Any(source => source?.Outcome == "success"),
                 },
                 cancellationToken: cancellationToken

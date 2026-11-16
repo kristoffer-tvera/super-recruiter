@@ -131,6 +131,7 @@ public sealed class WowProgressQueueTests
         builder.Services.AddSingleton<PlayerDatabaseService>();
         builder.Services.AddSingleton<PlayerSourceClient>();
         builder.Services.AddSingleton<PlayerEnrichmentService>();
+        builder.Services.AddSingleton<AutomaticEnrichmentService>();
         builder.Services.AddHttpClient<GeminiService>();
         await using var app = builder.Build();
         app.MapGroup("/api").MapEndpoints();

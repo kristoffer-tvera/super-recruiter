@@ -21,6 +21,7 @@ const WOW_CLASSES = [
 function AdminConfigPage() {
   const [config, setConfig] = useState<AdminConfig>({
     bossKills: 0,
+    trackedRaid: "",
     acceptedClasses: [],
   });
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,29 @@ function AdminConfigPage() {
               />
               <div className="form-text">
                 Players with fewer mythic boss kills will be filtered out.
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="trackedRaid" className="form-label fw-semibold">
+                Tracked Raid
+              </label>
+              <input
+                id="trackedRaid"
+                type="text"
+                className="form-control"
+                style={{ maxWidth: 320 }}
+                placeholder="e.g. the-venomous-abyss"
+                value={config.trackedRaid}
+                onChange={(e) => {
+                  setConfig((prev) => ({ ...prev, trackedRaid: e.target.value }));
+                  setSaved(false);
+                }}
+              />
+              <div className="form-text">
+                Raider.IO raid slug used for the mythic kill count shown in the
+                list and used by the filter above. If empty, Raider.IO&apos;s
+                current tier is used.
               </div>
             </div>
 

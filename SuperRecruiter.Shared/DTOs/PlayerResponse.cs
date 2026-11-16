@@ -27,6 +27,7 @@ public class PlayerResponse
     public ulong? DiscordMessageId { get; set; }
     public ulong? DiscordChannelId { get; set; }
     public int CurrentTierMythicKillCount { get; set; }
+    public int TrackedRaidTotalBosses { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

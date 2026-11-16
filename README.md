@@ -207,7 +207,13 @@ reads stored source status; it never contacts upstream services. AI evaluation i
 also a separate action. Existing markdown-only records remain readable until an
 explicit refresh; no automatic enrichment backfill is performed.
 
-- Discovery requests only `raid_progression:current-tier` from Raider.IO. The
+- If the admin config sets a **Tracked Raid** slug (for example `the-venomous-abyss`), discovery and enrichment
+  read the Mythic kill count and boss total from that raid in Raider.IO's current-expansion data instead of
+  the current-tier selector (which can point at an irrelevant one-boss raid). The list view shows it as `7/8 M`.
+  Existing players keep their old values until re-discovered or enriched.
+- Newly discovered players are enriched automatically from Raider.IO and WarcraftLogs only (queued, one at a
+  time). WoWProgress stays on-demand. Set `Enrichment:Automatic=false` to disable.
+- With no tracked raid, discovery requests only `raid_progression:current-tier` from Raider.IO. The
   upstream selector advances tiers automatically; counts cover all returned
   current-tier raids, not the whole expansion. Counts are last-observed snapshots,
   not live revalidation of all historical players at a tier rollover.

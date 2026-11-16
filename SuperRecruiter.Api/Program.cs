@@ -23,6 +23,8 @@ builder.Services.AddHttpClient<GeminiService>();
 builder.Services.AddHttpClient("enrichment", client => client.Timeout = TimeSpan.FromSeconds(70)).RedactLoggedHeaders(["Authorization"]).RemoveAllLoggers();
 builder.Services.AddSingleton<PlayerSourceClient>();
 builder.Services.AddSingleton<PlayerEnrichmentService>();
+builder.Services.AddSingleton<AutomaticEnrichmentService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AutomaticEnrichmentService>());
 
 var app = builder.Build();
 

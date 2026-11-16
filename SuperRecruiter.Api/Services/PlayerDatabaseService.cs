@@ -50,6 +50,7 @@ public partial class PlayerDatabaseService
                     ('players', 'discord_message_id'),
                     ('players', 'discord_channel_id'),
                     ('players', 'current_tier_mythic_kill_count'),
+                    ('players', 'tracked_raid_total_bosses'),
                     ('players', 'discovery_progression'),
                     ('players', 'raiderio_data'),
                     ('players', 'warcraftlogs_data'),
@@ -153,6 +154,7 @@ public partial class PlayerDatabaseService
         await connection.ExecuteAsync(createConfigTable);
         await connection.ExecuteAsync(
             """
+            ALTER TABLE players ADD COLUMN IF NOT EXISTS tracked_raid_total_bosses INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE players ADD COLUMN IF NOT EXISTS discovery_progression JSONB;
             ALTER TABLE players ADD COLUMN IF NOT EXISTS sources INTEGER[];
             ALTER TABLE players ADD COLUMN IF NOT EXISTS raiderio_data JSONB;
@@ -175,7 +177,7 @@ public partial class PlayerDatabaseService
             guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
             warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
             status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-            current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+            current_tier_mythic_kill_count AS CurrentTierMythicKillCount, tracked_raid_total_bosses AS TrackedRaidTotalBosses,
             enriched_at AS EnrichedAt, gemini_generated_at AS GeminiGeneratedAt,
             created_at AS CreatedAt, updated_at AS UpdatedAt
             FROM players";
@@ -259,11 +261,11 @@ public partial class PlayerDatabaseService
             INSERT INTO players (character_name, class, realm, realm_slug, item_level, last_updated,
                 character_url, battletag, bio, languages, specs_playing, guild_history, sources,
                 raiderio_summary, warcraftlogs_summary, status,
-                discord_message_id, discord_channel_id, current_tier_mythic_kill_count, discovery_progression, created_at, updated_at)
+                discord_message_id, discord_channel_id, current_tier_mythic_kill_count, tracked_raid_total_bosses, discovery_progression, created_at, updated_at)
             VALUES (@CharacterName, @Class, @Realm, @RealmSlug, @ItemLevel, @LastUpdated,
                 @CharacterUrl, @BattleTag, @Bio, @Languages, @SpecsPlaying, @GuildHistory, @Sources,
                 @RaiderIoSummary, @WarcraftLogsSummary, @Status,
-                @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, CAST(@DiscoveryProgression AS jsonb), @Now, @Now)
+                @DiscordMessageId, @DiscordChannelId, @CurrentTierMythicKillCount, @TrackedRaidTotalBosses, CAST(@DiscoveryProgression AS jsonb), @Now, @Now)
             ON CONFLICT (character_name, realm)
             DO UPDATE SET class = @Class, realm_slug = @RealmSlug, item_level = @ItemLevel,
                 last_updated = @LastUpdated, character_url = COALESCE(NULLIF(@CharacterUrl, ''), players.character_url),
@@ -282,6 +284,8 @@ public partial class PlayerDatabaseService
                 discovery_progression = COALESCE(CAST(@DiscoveryProgression AS jsonb), players.discovery_progression),
                 current_tier_mythic_kill_count = CASE WHEN @DiscoveryProgression IS NOT NULL
                     THEN @CurrentTierMythicKillCount ELSE players.current_tier_mythic_kill_count END,
+                tracked_raid_total_bosses = CASE WHEN @DiscoveryProgression IS NOT NULL
+                    THEN @TrackedRaidTotalBosses ELSE players.tracked_raid_total_bosses END,
                 updated_at = @Now
             RETURNING id, character_name AS CharacterName, class, realm, realm_slug AS RealmSlug,
                 item_level AS ItemLevel, last_updated AS LastUpdated, character_url AS CharacterUrl,
@@ -289,7 +293,7 @@ public partial class PlayerDatabaseService
                 guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount, tracked_raid_total_bosses AS TrackedRaidTotalBosses,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QuerySingleAsync<PlayerResponse>(
@@ -314,6 +318,7 @@ public partial class PlayerDatabaseService
                 DiscordMessageId = (long?)request.DiscordMessageId,
                 DiscordChannelId = (long?)request.DiscordChannelId,
                 request.CurrentTierMythicKillCount,
+                request.TrackedRaidTotalBosses,
                 Sources = request.Sources.Where(source => Enum.IsDefined(typeof(LfgSource), source)).Select(source => (int)source).Distinct().ToArray(),
                 DiscoveryProgression = request.DiscoveryProgression is null ? null : JsonSerializer.Serialize(request.DiscoveryProgression, SnapshotJsonOptions),
                 Now = DateTime.UtcNow,
@@ -334,7 +339,7 @@ public partial class PlayerDatabaseService
                 guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount, tracked_raid_total_bosses AS TrackedRaidTotalBosses,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -361,7 +366,7 @@ public partial class PlayerDatabaseService
                 guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount, tracked_raid_total_bosses AS TrackedRaidTotalBosses,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -403,7 +408,7 @@ public partial class PlayerDatabaseService
                 guild_history AS GuildHistory, COALESCE(sources, ARRAY[]::INTEGER[]) AS Sources, raiderio_summary AS RaiderIoSummary,
                 warcraftlogs_summary AS WarcraftLogsSummary, gemini_take AS GeminiTake,
                 status, discord_message_id AS DiscordMessageId, discord_channel_id AS DiscordChannelId,
-                current_tier_mythic_kill_count AS CurrentTierMythicKillCount,
+                current_tier_mythic_kill_count AS CurrentTierMythicKillCount, tracked_raid_total_bosses AS TrackedRaidTotalBosses,
                 created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         return await connection.QueryFirstOrDefaultAsync<PlayerResponse>(
@@ -555,6 +560,8 @@ public partial class PlayerDatabaseService
         {
             if (row.Key == "bosskills" && int.TryParse(row.Value, out var kills))
                 response.BossKills = kills;
+            else if (row.Key == "trackedraid")
+                response.TrackedRaid = row.Value;
             else if (row.Key == "acceptedclass")
                 response.AcceptedClasses.Add(row.Value);
         }
@@ -570,6 +577,11 @@ public partial class PlayerDatabaseService
         await connection.ExecuteAsync("DELETE FROM config WHERE key = 'bosskills'", transaction: transaction);
         await connection.ExecuteAsync("INSERT INTO config (key, value) VALUES ('bosskills', @Value)", new { Value = request.BossKills.ToString() }, transaction: transaction);
 
+        var trackedRaid = request.TrackedRaid.Trim().ToLowerInvariant();
+        await connection.ExecuteAsync("DELETE FROM config WHERE key = 'trackedraid'", transaction: transaction);
+        if (trackedRaid.Length > 0)
+            await connection.ExecuteAsync("INSERT INTO config (key, value) VALUES ('trackedraid', @Value)", new { Value = trackedRaid }, transaction: transaction);
+
         await connection.ExecuteAsync("DELETE FROM config WHERE key = 'acceptedclass'", transaction: transaction);
 
         foreach (var cls in request.AcceptedClasses)
@@ -579,6 +591,6 @@ public partial class PlayerDatabaseService
 
         transaction.Commit();
 
-        return new AdminConfigResponse { BossKills = request.BossKills, AcceptedClasses = [.. request.AcceptedClasses.Select(c => c.ToLower())] };
+        return new AdminConfigResponse { BossKills = request.BossKills, TrackedRaid = trackedRaid, AcceptedClasses = [.. request.AcceptedClasses.Select(c => c.ToLower())] };
     }
 }

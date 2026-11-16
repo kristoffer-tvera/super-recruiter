@@ -30,12 +30,15 @@ public class PlayerIngestionService(
         }
 
         var detailedPlayer = player;
-        var raiderIoData = discoveryProfile ?? await raiderIOService.GetCharacterProfileAsync("eu", player.RealmSlug, player.CharacterName, cancellationToken);
+        var trackedRaid = NormalizeTrackedRaid((await adminFilterService.GetConfigAsync(cancellationToken))?.TrackedRaid);
+        var raiderIoData =
+            discoveryProfile ?? await raiderIOService.GetCharacterProfileAsync("eu", player.RealmSlug, player.CharacterName, cancellationToken, trackedRaid: trackedRaid);
 
         var createRequest = BuildCreatePlayerRequest(detailedPlayer);
         createRequest.DiscoveryProgression = raiderIoData?.Raid_progression is { Count: > 0 } progression ? new DiscoveryProgression(DateTimeOffset.UtcNow, progression) : null;
 
         createRequest.CurrentTierMythicKillCount = raiderIoData?.Raid_progression?.Sum(raid => raid.Value.Mythic_bosses_killed) ?? 0;
+        createRequest.TrackedRaidTotalBosses = raiderIoData?.Raid_progression?.Sum(raid => raid.Value.Total_bosses) ?? 0;
 
         // Manual adds are vouched for by an officer, so they bypass the admin filters.
         var shouldPost =
@@ -75,6 +78,8 @@ public class PlayerIngestionService(
 
         return apiPlayer;
     }
+
+    public static string? NormalizeTrackedRaid(string? slug) => string.IsNullOrWhiteSpace(slug) ? null : slug.Trim().ToLowerInvariant();
 
     private bool ShouldSkipForLanguage(Player player)
     {

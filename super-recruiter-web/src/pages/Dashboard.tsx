@@ -168,10 +168,11 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
                 <div>
                     {/* Header row */}
                     <div className="row fw-bold border-bottom py-3 small d-none d-md-flex align-items-center" style={{ backgroundColor: "#1A1716" }}>
-                        <div className="col-3">Player</div>
+                        <div className="col-2">Player</div>
                         <div className="col-1">Class</div>
                         <div className="col-2">Realm</div>
                         <div className="col-1 text-end">iLvl</div>
+                        <div className="col-1 text-end">Prog</div>
                         <div className="col-1">Status</div>
                         <div className="col-2">Updated</div>
                         <div className="col-2">Actions</div>
@@ -185,7 +186,7 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
                             onClick={() => openPlayer(p)}
                         >
                             <div
-                                className="col-md-3 fw-semibold"
+                                className="col-md-2 fw-semibold"
                                 style={{
                                     color: CLASS_COLORS[p.class?.toLowerCase()] ?? "#fff",
                                 }}
@@ -206,6 +207,7 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
                             </div>
                             <div className="col-md-2">{p.realm}</div>
                             <div className="col-md-1 text-end">{p.itemLevel.toFixed(1)}</div>
+                            <div className="col-md-1 text-end">{p.trackedRaidTotalBosses > 0 ? `/ M` : "-"}</div>
                             <div className="col-md-1">
                                 <span className={`badge ${STATUS_BADGE[p.status]}`}>{STATUS_LABELS[p.status]}</span>
                             </div>
