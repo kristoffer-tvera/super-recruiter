@@ -207,7 +207,7 @@ export default function Dashboard({ initialRealmSlug, initialCharacterName }: { 
                             </div>
                             <div className="col-md-2">{p.realm}</div>
                             <div className="col-md-1 text-end">{p.itemLevel.toFixed(1)}</div>
-                            <div className="col-md-1 text-end">{p.trackedRaidTotalBosses > 0 ? `/ M` : "-"}</div>
+                            <div className="col-md-1 text-end">{p.trackedRaidTotalBosses > 0 ? `${p.currentTierMythicKillCount}/${p.trackedRaidTotalBosses} M` : "-"}</div>
                             <div className="col-md-1">
                                 <span className={`badge ${STATUS_BADGE[p.status]}`}>{STATUS_LABELS[p.status]}</span>
                             </div>
