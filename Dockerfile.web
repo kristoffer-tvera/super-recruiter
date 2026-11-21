@@ -7,7 +7,7 @@ RUN npm ci
 COPY super-recruiter-web/ ./
 RUN npm run build
 
-FROM nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+FROM nginx:1.31.8-alpine3.24@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72
 
 ARG SECURITY_REFRESH=local
 RUN test -n "$SECURITY_REFRESH" && apk upgrade --no-cache
